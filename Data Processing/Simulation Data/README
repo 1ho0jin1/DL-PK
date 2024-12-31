@@ -1,1 +1,14 @@
+# 시뮬레이션 Option
+총 3000명, 12시간 간격으로 14일(총28회) 투약
+성별, 나이, 체중, Cr(소변 Creatinine 수치)는 Random Distribution으로 배정
+ground truth = 0.1 hr 간격으로 (0hr ~ 372hr) 범위 동안 약물 농도(DV) 측정 + 투약(AMT) 정보 
+observation = 3일(72hr) 6일(144hr) 9일(216hr) 12일(288hr) 시점에만 약물 농도(DV) 측정 + 투약(AMT) 정보 
 
+# 파일 설명
+Simulation Data Description.pdf = 데이터 생성 Option 설명
+observation_241231.csv = observation data
+Create Sim Data 241231.R = 시뮬레이션 R code (참고용)
+
+# 파일 링크
+ground truth data는 용량이 커서 업로드 불가능 (구글 드라이브 링크)
+https://drive.google.com/file/d/1h_T8mAUtqPb56HoUgzHrbbfQhMAi75me/view?usp=sharing
