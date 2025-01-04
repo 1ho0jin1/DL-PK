@@ -6,8 +6,9 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 
 
+
 class PKDataset(Dataset):
-    def __init__(self, root_dir, transform=None):
+    def __init__(self, root_dir, transform=None, seq_len=240):
         """
         Args:
             root_dir (str): Path to the 'DATA' folder.
@@ -24,8 +25,8 @@ class PKDataset(Dataset):
             │    └── meta.txt
             ├── ...
         """
-
         self.root_dir = root_dir
+        self.seq_len = seq_len
         self.patient_ids = sorted(
             [d for d in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, d))]
         )
@@ -56,14 +57,31 @@ class PKDataset(Dataset):
         sample = {
             'ptid': patient_id,   # patient ID
             'data': data_tensor,  # shape: (num_rows, 3)
-            'meta': meta_tensor   # shape: (4,) in your example
+            'meta': meta_tensor   # shape: (4,)
         }
 
         if self.transform:
-            sample = self.transform(sample)
+            sample = self.transform(sample, self.seq_len)
 
         return sample
-    
+
+
+
+def consecutive_sampling(sample, seq_len=240):
+    """
+    Args:
+        sample (dict): A sample from the PKDataset.
+        seq_len (int): Length of the sequence to sample. Default is 240 (24 hours)
+    Returns:
+        dict: A sample with only 'data' field modified.
+    """
+    num_rows = sample['data'].shape[0]
+    start_idx = np.random.randint(0, num_rows - seq_len + 1)
+    sample['data'] = sample['data'][start_idx:start_idx+seq_len]
+    return sample
+
+
+
 
 
 if __name__ == "__main__":

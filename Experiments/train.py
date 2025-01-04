@@ -14,7 +14,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from models import *
 from utils.general import set_random_seed
-from dataloader import PKDataset
+from dataloader import PKDataset, consecutive_sampling
 
 
 #set project base directory
@@ -32,7 +32,7 @@ def main(args):
     device = torch.device(args.device)
 
     # load data and create dataloaders
-    train_data = PKDataset(os.path.join(args.data_dir, 'train'))
+    train_data = PKDataset(os.path.join(args.data_dir, 'train'), transform=consecutive_sampling, seq_len=args.seq_len)
     valid_data = PKDataset(os.path.join(args.data_dir, 'valid'))
     train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
     valid_loader = DataLoader(valid_data, batch_size=args.batch_size, shuffle=False)
@@ -49,7 +49,7 @@ def main(args):
 
     # define loss function, optimizer, scheduler
     criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
     # create tensorboard writer
@@ -63,9 +63,10 @@ def main(args):
             optimizer.zero_grad()
             data = batch['data'].to(device)
             meta = batch['meta'].to(device)      # TODO: use metadata somehow
+            input = data[:, :-1]                 # input: all time steps except the last one
             target = data[:, -1, 2].view(-1, 1)  # target: predict DV of the last time step
 
-            output = model(data, meta)
+            output = model(input, meta)
             loss = criterion(output, target)
             loss.backward()
             optimizer.step()
@@ -80,21 +81,35 @@ def main(args):
             for i, batch in enumerate(valid_loader):
                 data = batch['data'].to(device)
                 meta = batch['meta'].to(device)
-                target = data[:, -1, 2].view(-1, 1)  # target: predict DV of the last time step
-                output = model(data, meta)
-                loss = criterion(output, target)
-                valid_loss += loss.item()
+                
+                # split sequences into args.seq_len and predict each splits
+                N = data.shape[1]
+                for i in range(0, N, args.seq_len):
+                    s, e = i, min(i+args.seq_len-1, N-1)
+                    input = data[:, s:e]
+                    target = data[:, e, 2].view(-1, 1)
+                    output = model(input, meta)
+                    loss = criterion(output, target)
+                    valid_loss += loss.item()
 
-            valid_loss /= len(valid_loader)
+            valid_loss /= len(valid_loader) * (N // args.seq_len)
             writer.add_scalar('loss/valid', valid_loss, epoch)
 
-        print(f"Epoch {epoch}: train_loss={train_loss:.4f}, valid_loss={valid_loss:.4f}")
+        tqdm.write(f"Epoch {epoch}: train_loss={train_loss:.4f}, valid_loss={valid_loss:.4f}")
+        
+        # log learning rate
+        writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)
+        
+        # step scheduler
         scheduler.step()
 
         # save model if validation loss is minimum
         if epoch == 0 or valid_loss < min_loss:
             min_loss = valid_loss
-            torch.save(model.state_dict(), os.path.join(args.save_dir, f'{args.model}.pt'))
+            torch.save({
+                "model": model.state_dict(),
+                "optimizer": optimizer.state_dict(),
+                }, os.path.join(args.save_dir, f'best.pt'))
 
 
 
@@ -103,14 +118,15 @@ if __name__ == "__main__":
     args = argparse.ArgumentParser()
     # directory arguments
     args.add_argument('--data_dir', type=str, default=r'C:\Users\qkrgh\Jupyter\DL-PK\Experiments\dataset')
-    args.add_argument('--run_name', type=str, default='', help='name of the training run')
+    args.add_argument('--run_name', type=str, default='lstm', help='name of the training run')
 
     # training arguments
     args.add_argument('--device', type=str, default='cpu')
-    args.add_argument('--model', type=str, default='', help='lstm, gru, transformer')
+    args.add_argument('--model', type=str, default='lstm', help='lstm, gru, transformer')
     args.add_argument('--batch_size', type=int, default=32)
-    args.add_argument('--lr', type=float, default=1e-3)
-    args.add_argument('--epochs', type=int, default=10)
+    args.add_argument('--lr', type=float, default=0.005)
+    args.add_argument('--epochs', type=int, default=100)
+    args.add_argument('--seq_len', type=int, default=240)
 
     # miscellaneous arguments: no need to change!
     args.add_argument('--seed', type=int, default=2025)
