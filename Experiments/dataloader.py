@@ -77,3 +77,13 @@ if __name__ == "__main__":
     print(data['ptid'])
     print(data['meta'])
     print(data['data'].shape)
+
+
+    # load models and test
+    from models.gru import GRUPK
+    from models.lstm import LSTMPK
+    from models.transformer import TransformerPK
+    model1 = GRUPK()
+    model2 = LSTMPK()
+    model3 = TransformerPK()
+    print()
