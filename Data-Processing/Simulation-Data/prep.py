@@ -7,7 +7,8 @@ from pathlib import Path
 
 base = Path(__file__).parent
 
-for fn in ['observation_241231.csv', 'ground_truth_241231.csv']:
+# Preprocess data
+for fn in ['ground_truth_241231.csv']:
     data = pd.read_csv(base / fn)  # read data
     dest = base / fn[:-4]          # destination folder
 
