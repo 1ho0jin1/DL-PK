@@ -4,7 +4,7 @@ import numpy as np
 from tqdm import tqdm
 from pathlib import Path
 
-base = Path(__file__).parent
+base = Path(__file__).parent / 'dataset'
 source = Path(r"C:\Users\qkrgh\Jupyter\DL-PK\Data-Processing\Simulation-Data\ground_truth_241231")
 
 id_list = os.listdir(source)
@@ -22,4 +22,4 @@ for split, lst in zip(['train', 'valid', 'test'], [train_list, valid_list, test_
     os.makedirs(dest, exist_ok=True)
     for id_ in tqdm(lst):
         os.symlink(source / id_, dest / id_)
-        # shutil.copytree(source / id_, dest / id_)
+        # shutil.copytree(source / id_, dest / id_) # if you want to copy instead of symlink
