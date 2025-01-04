@@ -29,13 +29,11 @@ class GRUPK(nn.Module):
         factor = 2 if bidirectional else 1
         self.fc = nn.Linear(hidden_dim * factor, output_dim)
 
-    def forward(self, x):
+    def forward(self, x, aux=None):
         """
-        Forward pass through the GRU model.
-        
         Args:
             x (torch.Tensor): Shape (batch_size, seq_len, input_dim).
-        
+            aux (torch.Tensor): Shape (batch_size, aux_dim) or None.
         Returns:
             torch.Tensor: Model output of shape (batch_size, output_dim).
         """

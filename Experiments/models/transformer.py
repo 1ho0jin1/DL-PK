@@ -47,13 +47,11 @@ class TransformerPK(nn.Module):
         # 4) Final projection to output_dim
         self.fc = nn.Linear(d_model, output_dim)
 
-    def forward(self, x):
+    def forward(self, x, aux=None):
         """
-        Forward pass through the Transformer Encoder.
-
         Args:
             x (torch.Tensor): shape (batch_size, seq_len, input_dim)
-
+            aux (torch.Tensor): Shape (batch_size, aux_dim) or None.
         Returns:
             torch.Tensor: shape (batch_size, output_dim)
         """

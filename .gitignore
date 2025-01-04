@@ -1,2 +1,4 @@
 DATA-Processing/
 Experiments/dataset/*
+Experiments/runs/*
+**/__pycache__/
