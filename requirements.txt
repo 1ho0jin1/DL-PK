@@ -1,2 +1,9 @@
-torch==2.3.1
-
+matplotlib
+pandas
+scikit-learn
+scipy
+tensorboard
+torch
+torchdiffeq
+torchsummary
+tqdm
