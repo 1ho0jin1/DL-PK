@@ -30,6 +30,7 @@ def main(args):
     os.makedirs(args.save_dir, exist_ok=True)
     
     # set device
+    args.device = f"cuda:{args.device}" if torch.cuda.is_available() else "cpu"
     device = torch.device(args.device)
 
     # load data and create dataloaders
@@ -56,19 +57,20 @@ def main(args):
     # inference loop
     model.eval()
     with torch.no_grad():
-        for iter, batch in enumerate(dataloader):
+        for iter, batch in tqdm(enumerate(dataloader)):
             data = batch['data'].to(device)
             meta = batch['meta'].to(device)
             
             B, N = data.shape[:2]
+            input = data.clone()  # make a copy as we will modify the input
             output_logs = data[:, :args.seq_len, 2]
             for i in range(0, N-args.seq_len):
-                input = data[:, i:i+args.seq_len-1]
+                input_i = input[:, i:i+args.seq_len-1]
                 target = data[:, i+args.seq_len-1, 2].view(-1, 1)
                 if i > 0:  # substitute DV of the last time step with the predicted value
-                    input[:, -1, 2] = output.squeeze()
-
-                output = model(input, meta)
+                    input_i[:, -1, 2] = output.squeeze()
+            
+                output = model(input_i, meta)
                 loss = criterion(output, target)
                 output_logs = torch.cat([output_logs, output], dim=1)
                 
@@ -88,12 +90,12 @@ if __name__ == "__main__":
     args = argparse.ArgumentParser()
     # directory arguments
     args.add_argument('--source_dir', type=str, default=r'C:\Users\qkrgh\Jupyter\DL-PK\Experiments\dataset\test')
-    args.add_argument('--weight_path', type=str, default=r'C:\Users\qkrgh\Jupyter\DL-PK\Experiments\runs\train\gru\best.pt', help='model weight path')
-    args.add_argument('--run_name', type=str, default='gru', help='name of the training run')
+    args.add_argument('--weight_path', type=str, default=r'C:\Users\qkrgh\Jupyter\DL-PK\Experiments\runs\train\lstm\best.pt', help='model weight path')
+    args.add_argument('--run_name', type=str, default='lstm', help='name of the training run')
 
     # training arguments
-    args.add_argument('--device', type=str, default='cpu')
-    args.add_argument('--model', type=str, default='gru', help='lstm, gru, transformer')
+    args.add_argument('--device', type=str, default='0')
+    args.add_argument('--model', type=str, default='lstm', help='lstm, gru, transformer')
     args.add_argument('--batch_size', type=int, default=32)
     args.add_argument('--seq_len', type=int, default=240)
 

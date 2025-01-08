@@ -29,6 +29,7 @@ def main(args):
     os.makedirs(args.save_dir, exist_ok=True)
     
     # set device
+    args.device = f"cuda:{args.device}" if torch.cuda.is_available() else "cpu"
     device = torch.device(args.device)
 
     # load data and create dataloaders
@@ -121,7 +122,7 @@ if __name__ == "__main__":
     args.add_argument('--run_name', type=str, default='lstm', help='name of the training run')
 
     # training arguments
-    args.add_argument('--device', type=str, default='cpu')
+    args.add_argument('--device', type=str, default='0')
     args.add_argument('--model', type=str, default='lstm', help='lstm, gru, transformer')
     args.add_argument('--batch_size', type=int, default=32)
     args.add_argument('--lr', type=float, default=0.005)
