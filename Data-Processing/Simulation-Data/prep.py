@@ -16,8 +16,6 @@ for fn in ['ground_truth_241231.csv']:
     columns_fixed = ['SEX', 'AGE', 'WT', 'Cr']  # These columns are fixed for each ID
     for id_ in tqdm(data['ID'].unique()):
         dest_id = dest / str(id_).zfill(4)
-        os.makedirs(dest_id, exist_ok=True)
-        
         data_id = data[data['ID'] == id_]
         meta_id = data_id[columns_fixed].to_numpy()
         data_id = data_id[columns_var].to_numpy()
@@ -29,7 +27,14 @@ for fn in ['ground_truth_241231.csv']:
         assert (data_id[idx, 0] == data_id[idx-1, 0]).all(), "Time should be same for dose stage"
         data_id[idx, 2] = data_id[idx-1, 2]
 
+        # check DV correctness
+        if (data_id[:, 2] > 1000).sum().any():
+            print(f"ID {id_} has max DV:{data_id[:, 2].max()}, skipping as it may be corrupted")
+            continue
         assert np.unique(meta_id).shape == (4,), "These columns should be same for each ID"
+        
+        # make destination folder
+        os.makedirs(dest_id, exist_ok=True)
         SEX, AGE, WT, Cr = meta_id[0]
         with open(dest_id / 'meta.txt', 'w') as fp:
             fp.write(f"{int(SEX)} {int(AGE)} {WT:.4f} {Cr:.4f}\n")
