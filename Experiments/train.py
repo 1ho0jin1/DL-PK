@@ -85,16 +85,18 @@ def main(args):
                 meta = batch['meta'].to(device)
                 
                 # split sequences into args.seq_len and predict each splits
-                N = data.shape[1]
-                for i in range(0, N, args.seq_len):
-                    s, e = i, min(i+args.seq_len-1, N-1)
-                    input = data[:, s:e]
-                    target = data[:, e, 2].view(-1, 1)
-                    output = model(input, meta)
+                B, N = data.shape[:2]
+                input = data.clone()  # make a copy as we will modify the input
+                for i in range(0, N-args.seq_len):
+                    input_i = input[:, i:i+args.seq_len-1]
+                    target = data[:, i+args.seq_len-1, 2].view(-1, 1)
+                    if i > 0:  # substitute DV of the last time step with the predicted value
+                        input_i[:, -1, 2] = output.squeeze()
+                    output = model(input_i, meta)
                     loss = criterion(output, target)
                     valid_loss += loss.item()
 
-            valid_loss /= len(valid_loader) * (N // args.seq_len)
+            valid_loss /= len(valid_loader) * (N - args.seq_len)
             writer.add_scalar('loss/valid', valid_loss, epoch)
 
         tqdm.write(f"Epoch {epoch}: train_loss={train_loss:.4f}, valid_loss={valid_loss:.4f}")
