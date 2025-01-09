@@ -35,7 +35,7 @@ def main(args):
         PKPreprocess(),
     ])
     train_data = PKDataset(os.path.join(args.data_dir, 'train'), transform=train_trfm)
-    valid_data = PKDataset(os.path.join(args.data_dir, 'valid'))
+    valid_data = PKDataset(os.path.join(args.data_dir, 'valid'), transform=PKPreprocess())
     train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
     valid_loader = DataLoader(valid_data, batch_size=args.batch_size, shuffle=False)
 
@@ -84,7 +84,6 @@ def main(args):
                 data = batch['data'].to(device)
                 meta = batch['meta'].to(device)
                 
-                # split sequences into args.seq_len and predict each splits
                 B, N = data.shape[:2]
                 input = data.clone()  # make a copy as we will modify the input
                 for i in range(0, N-args.seq_len):
@@ -123,13 +122,13 @@ if __name__ == "__main__":
     args = argparse.ArgumentParser()
     # directory arguments
     args.add_argument('--data_dir', type=str, default=r'C:\Users\qkrgh\Jupyter\DL-PK\Experiments\dataset')
-    args.add_argument('--yaml_path', type=str, default=r'C:\Users\qkrgh\Jupyter\DL-PK\Experiments\config\gru_250109.yaml', help='path of config.yaml')
-    args.add_argument('--run_name', type=str, default='gru_250109', help='name of this run')
+    args.add_argument('--yaml_path', type=str, default='', help='path of config.yaml')
+    args.add_argument('--run_name', type=str, default='', help='name of this run')
     args.add_argument('--device', type=int, default=0, help='cuda index. ignored if cuda device is unavailable')
-    
     # miscellaneous arguments: no need to change!
     args.add_argument('--seed', type=int, default=2025)
     args = args.parse_args()
+
     # parse configs
     with open(args.yaml_path, 'r') as fp:
         config = yaml.safe_load(fp)
