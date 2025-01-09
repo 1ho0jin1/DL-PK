@@ -5,5 +5,5 @@ scipy
 tensorboard
 torch
 torchdiffeq
-torchsummary
+torch-summary
 tqdm

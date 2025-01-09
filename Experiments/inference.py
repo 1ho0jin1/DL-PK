@@ -89,13 +89,13 @@ def main(args):
 if __name__ == "__main__":
     args = argparse.ArgumentParser()
     # directory arguments
-    args.add_argument('--source_dir', type=str, default=r'C:\Users\qkrgh\Jupyter\DL-PK\Experiments\dataset\test')
-    args.add_argument('--weight_path', type=str, default=r'C:\Users\qkrgh\Jupyter\DL-PK\Experiments\runs\train\lstm\best.pt', help='model weight path')
-    args.add_argument('--run_name', type=str, default='lstm', help='name of the training run')
+    args.add_argument('--source_dir', type=str, default=r'C:\Users\qkrgh\Jupyter\DL-PK\Experiments\dataset\train')
+    args.add_argument('--weight_path', type=str, default=r'C:\Users\qkrgh\Jupyter\DL-PK\Experiments\runs\train\gru\best.pt', help='model weight path')
+    args.add_argument('--run_name', type=str, default='gru_train', help='name of the training run')
 
     # training arguments
     args.add_argument('--device', type=str, default='0')
-    args.add_argument('--model', type=str, default='lstm', help='lstm, gru, transformer')
+    args.add_argument('--model', type=str, default='gru', help='lstm, gru, transformer')
     args.add_argument('--batch_size', type=int, default=32)
     args.add_argument('--seq_len', type=int, default=240)
 

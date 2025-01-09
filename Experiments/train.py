@@ -1,20 +1,20 @@
 import os
+import yaml
 import argparse
-import numpy as np
 from tqdm import tqdm
 from pathlib import Path
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from torchvision.transforms import transforms
 
 from models import *
+from dataloader import *
 from utils.general import set_random_seed
-from dataloader import PKDataset, consecutive_sampling
 
 
 #set project base directory
@@ -24,16 +24,17 @@ base = Path(__file__).parent
 def main(args):
     # set random seed
     set_random_seed(args.seed)
-
-    # create save directory
-    os.makedirs(args.save_dir, exist_ok=True)
     
     # set device
     args.device = f"cuda:{args.device}" if torch.cuda.is_available() else "cpu"
     device = torch.device(args.device)
 
     # load data and create dataloaders
-    train_data = PKDataset(os.path.join(args.data_dir, 'train'), transform=consecutive_sampling, seq_len=args.seq_len)
+    train_trfm = transforms.Compose([
+        ConsecutiveSampling(args.seq_len),
+        PKPreprocess(),
+    ])
+    train_data = PKDataset(os.path.join(args.data_dir, 'train'), transform=train_trfm)
     valid_data = PKDataset(os.path.join(args.data_dir, 'valid'))
     train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
     valid_loader = DataLoader(valid_data, batch_size=args.batch_size, shuffle=False)
@@ -50,7 +51,7 @@ def main(args):
 
     # define loss function, optimizer, scheduler
     criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
     # create tensorboard writer
@@ -108,10 +109,11 @@ def main(args):
         if epoch == 0 or valid_loss < min_loss:
             min_loss = valid_loss
             torch.save({
+                "configs": vars(args),
                 "model": model.state_dict(),
                 "optimizer": optimizer.state_dict(),
                 }, os.path.join(args.save_dir, f'best.pt'))
-
+            
 
 
 
@@ -119,21 +121,22 @@ if __name__ == "__main__":
     args = argparse.ArgumentParser()
     # directory arguments
     args.add_argument('--data_dir', type=str, default=r'C:\Users\qkrgh\Jupyter\DL-PK\Experiments\dataset')
-    args.add_argument('--run_name', type=str, default='lstm', help='name of the training run')
-
-    # training arguments
-    args.add_argument('--device', type=str, default='0')
-    args.add_argument('--model', type=str, default='lstm', help='lstm, gru, transformer')
-    args.add_argument('--batch_size', type=int, default=32)
-    args.add_argument('--lr', type=float, default=0.005)
-    args.add_argument('--epochs', type=int, default=100)
-    args.add_argument('--seq_len', type=int, default=240)
-
+    args.add_argument('--yaml_path', type=str, default=r'C:\Users\qkrgh\Jupyter\DL-PK\Experiments\config\gru_250109.yaml', help='path of config.yaml')
+    args.add_argument('--run_name', type=str, default='gru_250109', help='name of this run')
+    args.add_argument('--device', type=int, default=0, help='cuda index. ignored if cuda device is unavailable')
+    
     # miscellaneous arguments: no need to change!
     args.add_argument('--seed', type=int, default=2025)
     args = args.parse_args()
+    # parse configs
+    with open(args.yaml_path, 'r') as fp:
+        config = yaml.safe_load(fp)
+    for key, value in config.items():
+        setattr(args, key, value)
 
-    # set save directory
+    # set & create save directory
     args.save_dir = base / 'runs/train' / args.run_name
+    os.makedirs(args.save_dir, exist_ok=True)
+    print("Save directory:", args.save_dir)
 
     main(args)

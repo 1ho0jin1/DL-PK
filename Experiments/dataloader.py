@@ -4,11 +4,12 @@ from tqdm import tqdm
 from pathlib import Path
 import torch
 from torch.utils.data import Dataset, DataLoader
+from torchvision.transforms import transforms
 
 
 
 class PKDataset(Dataset):
-    def __init__(self, root_dir, transform=None, seq_len=240):
+    def __init__(self, root_dir, transform=None):
         """
         Args:
             root_dir (str): Path to the 'DATA' folder.
@@ -26,7 +27,7 @@ class PKDataset(Dataset):
             ├── ...
         """
         self.root_dir = root_dir
-        self.seq_len = seq_len
+        self.transform = transform
         self.patient_ids = sorted(
             [d for d in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, d))]
         )
@@ -41,7 +42,6 @@ class PKDataset(Dataset):
             meta = np.loadtxt(meta_file, delimiter=None)
             self.patient_data.append(data)
             self.patient_meta.append(meta)
-        self.transform = transform
 
     def __len__(self):
         return len(self.patient_ids)
@@ -61,25 +61,47 @@ class PKDataset(Dataset):
         }
 
         if self.transform:
-            sample = self.transform(sample, self.seq_len)
+            sample = self.transform(sample)
 
         return sample
 
 
 
-def consecutive_sampling(sample, seq_len=240):
+class ConsecutiveSampling(object):
     """
-    Args:
-        sample (dict): A sample from the PKDataset.
-        seq_len (int): Length of the sequence to sample. Default is 240 (24 hours)
-    Returns:
-        dict: A sample with only 'data' field modified.
+    Samples a consecutive sequence of length `seq_len` from the data.
     """
-    num_rows = sample['data'].shape[0]
-    start_idx = np.random.randint(0, num_rows - seq_len + 1)
-    sample['data'] = sample['data'][start_idx:start_idx+seq_len]
-    return sample
+    def __init__(self, seq_len=240):
+        self.seq_len = seq_len
+    def __call__(self, sample):
+        num_rows = sample['data'].shape[0]
+        start_idx = np.random.randint(0, num_rows - self.seq_len + 1)
+        sample['data'] = sample['data'][start_idx:start_idx+self.seq_len]
+        return sample
 
+
+
+class PKPreprocess(object):
+    """
+    sample['data']: (N,3) array, each row is ["TIME", "AMT", "DV"]
+    TIME: use difference between consecutive time points instead of absolute value
+    DV  : re-scale by scale_dv set to 100 (mg/L)
+    AGE : re-scale by scale_age set to 100 (yrs)
+    WT  : re-scale by scale_wt set to 100 (kg)
+    """
+    def __init__(self, scale_dv=100, scale_age=100, scale_wt=100):
+        self.scale_dv = scale_dv
+        self.scale_age = scale_age
+        self.scale_wt = scale_wt
+    def __call__(self, sample):
+        # use difference between consecutive time points
+        sample['data'][1:,0] = torch.diff(sample['data'][:,0])
+        sample['data'][0, 0] = 0.0
+        # rescale DV, AGE, WT
+        sample['data'][:,2] = sample['data'][:,2] / self.scale_dv
+        sample['meta'][1] = sample['meta'][1] / self.scale_age
+        sample['meta'][2] = sample['meta'][2] / self.scale_wt
+        return sample
 
 
 
@@ -87,7 +109,13 @@ def consecutive_sampling(sample, seq_len=240):
 if __name__ == "__main__":
     base = Path(__file__).parent
     path = base / 'dataset/valid'
-    dataset = PKDataset(path)
+    
+    transform = transforms.Compose([
+        ConsecutiveSampling(seq_len=240),
+        PKPreprocess(scale_dv=200.0)
+    ])
+    
+    dataset = PKDataset(path, transform=transform)
     dataloader = DataLoader(dataset, batch_size=4, shuffle=True)
     
     # get one sample
