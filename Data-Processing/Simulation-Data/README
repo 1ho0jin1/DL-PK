@@ -1,14 +1,39 @@
+> 데이터 생성 방식 수정 [Update 250110]
+truncated normal distribution 사용
+AGE = range:(18, 90) mean:55 sd:20
+WT = range:(40, 150) mean:70 sd:15
+Cr = range:(0.4, 5) mean:1.0 sd:0.3
+
 # 시뮬레이션 Option
 총 3000명, 12시간 간격으로 14일(총28회) 투약
 성별, 나이, 체중, Cr(소변 Creatinine 수치)는 Random Distribution으로 배정
 ground truth = 0.1 hr 간격으로 (0hr ~ 372hr) 범위 동안 약물 농도(DV) 측정 + 투약(AMT) 정보 
 observation = 3일(72hr) 6일(144hr) 9일(216hr) 12일(288hr) 시점에만 약물 농도(DV) 측정 + 투약(AMT) 정보 
 
-# 파일 설명
+# 파일 설명 [Update 250110]
 Simulation Data Description.pdf = 데이터 생성 Option 설명
-observation_241231.csv = observation data
-Create Sim Data 241231.R = 시뮬레이션 R code (참고용)
+observation_250110.csv = observation data
+Create Sim Data 250110.R = 시뮬레이션 R code (참고용)
+pk_parameters_250110.csv = 모델에 사용된 parameter 정보 정리 (subject ID 별)
 
-# 파일 링크
+# 파일 링크 [Update 250110]
 ground truth data는 용량이 커서 업로드 불가능 (구글 드라이브 링크)
 https://drive.google.com/file/d/1h_T8mAUtqPb56HoUgzHrbbfQhMAi75me/view?usp=sharing
+
+[참고]
+> summary(ground_truth) # 생성된 데이터 상태 확인
+       ID              TIME            TAD              AMT                 DV              SEX              AGE              WT        
+ Min.   :   1.0   Min.   :  0.0   Min.   : 0.000   Min.   :1000       Min.   :  0.00   Min.   :0.0000   Min.   :18.06   Min.   : 40.02  
+ 1st Qu.: 750.8   1st Qu.: 92.9   1st Qu.: 3.200   1st Qu.:1000       1st Qu.: 14.46   1st Qu.:0.0000   1st Qu.:41.63   1st Qu.: 61.30  
+ Median :1500.5   Median :185.8   Median : 6.500   Median :1000       Median : 24.20   Median :1.0000   Median :54.22   Median : 70.72  
+ Mean   :1500.5   Mean   :185.8   Mean   : 8.221   Mean   :1000       Mean   : 27.48   Mean   :0.5027   Mean   :54.42   Mean   : 71.24  
+ 3rd Qu.:2250.2   3rd Qu.:278.7   3rd Qu.: 9.900   3rd Qu.:1000       3rd Qu.: 36.68   3rd Qu.:1.0000   3rd Qu.:67.11   3rd Qu.: 80.42  
+ Max.   :3000.0   Max.   :372.0   Max.   :48.000   Max.   :1000       Max.   :168.00   Max.   :1.0000   Max.   :89.99   Max.   :118.50  
+                                                   NA's   :11163000   NA's   :84000                                                     
+       Cr       
+ Min.   :0.401  
+ 1st Qu.:0.817  
+ Median :1.007  
+ Mean   :1.018  
+ 3rd Qu.:1.209  
+ Max.   :1.998   
