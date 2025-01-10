@@ -18,7 +18,7 @@ pk_parameters_250110.csv = 모델에 사용된 parameter 정보 정리 (subject 
 
 # 파일 링크 [Update 250110]
 ground truth data는 용량이 커서 업로드 불가능 (구글 드라이브 링크)
-https://drive.google.com/file/d/1h_T8mAUtqPb56HoUgzHrbbfQhMAi75me/view?usp=sharing
+https://drive.google.com/file/d/1KQDX7hmRllaMGexOp6Mx4H3vblA7_Fzf/view?usp=sharing
 
 [참고]
 > summary(ground_truth) # 생성된 데이터 상태 확인
