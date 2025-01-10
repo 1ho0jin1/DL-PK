@@ -1,3 +1,6 @@
+[Colab - Google Drive]
+https://drive.google.com/drive/folders/151xNmWW9RG8o-EjtvvXpJQJhjYGouOOE?usp=sharing
+
 > 데이터 생성 방식 수정 [Update 250110]
 truncated normal distribution 사용
 AGE = range:(18, 90) mean:55 sd:20
