@@ -88,7 +88,7 @@ def main(args):
                     plt.legend(['Label', 'Prediction'])
                     plt.savefig(args.save_dir / f'ptid_{batch["ptid"][i]}.png')
                     plt.close()
-                break
+            break
 
 
 
