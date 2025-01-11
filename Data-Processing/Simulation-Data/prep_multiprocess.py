@@ -19,19 +19,19 @@ def process_patient_ids(patient_ids, data, data_aux, columns_var, columns_fixed,
         data_id[np.isnan(data_id[:,1]), 1] = 0.0  # NaN for AMT means 0
         # deal with NaNs for DV
         dv_nan_idx = np.isnan(data_id[:,2])
-        if fn == 'ground_truth_241231.csv':
+        if fn == 'ground_truth_250110.csv':
             data_id[dv_nan_idx, 2] = data_id[np.where(dv_nan_idx)[0]-1, 2]
-        elif fn == 'observation_241231.csv':
+        elif fn == 'observation_250110.csv':
             timestamp = data_id[dv_nan_idx, 0]
             data_aux_id = data_aux[data_aux['ID'] == id_][columns_var].to_numpy()
             sorter = np.argsort(data_aux_id[:,0])
             aux_idx = np.searchsorted(data_aux_id[:,0], timestamp, sorter=sorter)
             data_id[dv_nan_idx, 2] = data_aux_id[aux_idx, 2]
        
-        # check DV correctness
-        if (data_id[:, 2] > 1000).sum().any():
-            print(f"ID {id_} has max DV:{data_id[:, 2].max()}, skipping as it may be corrupted")
-            continue
+        # # check DV correctness
+        # if (data_id[:, 2] > 1000).sum().any():
+        #     print(f"ID {id_} has max DV:{data_id[:, 2].max()}, skipping as it may be corrupted")
+        #     continue
         assert np.unique(meta_id).shape == (4,), "These columns should be same for each ID"
         
         # make destination folder
@@ -46,12 +46,12 @@ def process_patient_ids(patient_ids, data, data_aux, columns_var, columns_fixed,
 def main():
     num_workers = min(16, os.cpu_count())
    
-    for fn in ['ground_truth_241231.csv']:
+    for fn in ['ground_truth_250110.csv']:
         data = pd.read_csv(base / fn)  # read data
         dest = base / fn[:-4]          # destination folder
  
-        if fn == 'observation_241231.csv':
-            data_aux = pd.read_csv(base / 'ground_truth_241231.csv')
+        if fn == 'observation_250110.csv':
+            data_aux = pd.read_csv(base / 'ground_truth_250110.csv')
         else:
             data_aux = None
  
