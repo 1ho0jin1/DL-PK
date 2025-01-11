@@ -36,8 +36,8 @@ def main(args):
     ])
     train_data = PKDataset(os.path.join(args.data_dir, 'train'), transform=train_trfm)
     valid_data = PKDataset(os.path.join(args.data_dir, 'valid'), transform=PKPreprocess())
-    train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
-    valid_loader = DataLoader(valid_data, batch_size=args.batch_size, shuffle=False)
+    train_loader = DataLoader(train_data, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True)
+    valid_loader = DataLoader(valid_data, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=False)
 
     # create model
     if args.model == 'lstm':
@@ -125,6 +125,7 @@ if __name__ == "__main__":
     args.add_argument('--yaml_path', type=str, default='', help='path of config.yaml')
     args.add_argument('--run_name', type=str, default='', help='name of this run')
     args.add_argument('--device', type=int, default=0, help='cuda index. ignored if cuda device is unavailable')
+    args.add_argument('--num_workers', type=int, default=8, help='number of workers for dataloader')
     # miscellaneous arguments: no need to change!
     args.add_argument('--seed', type=int, default=2025)
     args = args.parse_args()
