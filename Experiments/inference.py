@@ -15,7 +15,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from models import *
 from utils.general import set_random_seed
-from dataloader import PKDataset, consecutive_sampling
+from dataloader import *
 
 
 #set project base directory
@@ -33,22 +33,27 @@ def main(args):
     args.device = f"cuda:{args.device}" if torch.cuda.is_available() else "cpu"
     device = torch.device(args.device)
 
+    # load ckpt and set configs
+    ckpt = torch.load(args.ckpt_path)
+    for key, value in ckpt['configs'].items():
+        if not hasattr(args, key):
+            setattr(args, key, value)
+
     # load data and create dataloaders
-    dataset = PKDataset(args.source_dir)
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
+    dataset = PKDataset(args.source_dir, transform=PKPreprocess())
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=False)
 
     # create model
     if args.model == 'lstm':
-        model = LSTMPK().to(device)
+        model = LSTMPK(hidden_dim=args.hidden_dim, num_layers=args.num_layers).to(device)
     elif args.model == 'gru':
-        model = GRUPK().to(device)
-    elif args.model == 'transformer':
-        model = TransformerPK().to(device)
+        model = GRUPK(hidden_dim=args.hidden_dim, num_layers=args.num_layers).to(device)
+    # elif args.model == 'transformer':
+    #     model = TransformerPK().to(device)
     else:
         raise ValueError(f"Unknown model: {args.model}. Must be one of 'lstm', 'gru', 'transformer'")
     
     # load model weights
-    ckpt = torch.load(args.weight_path)
     model.load_state_dict(ckpt['model'])
 
     # set criterion: L2 loss
@@ -73,7 +78,7 @@ def main(args):
                 output = model(input_i, meta)
                 loss = criterion(output, target)
                 output_logs = torch.cat([output_logs, output], dim=1)
-                
+
             if iter == 0 and args.plot:
                 # plot the first batch
                 for i in range(B):
@@ -83,6 +88,7 @@ def main(args):
                     plt.legend(['Label', 'Prediction'])
                     plt.savefig(args.save_dir / f'ptid_{batch["ptid"][i]}.png')
                     plt.close()
+                break
 
 
 
@@ -90,14 +96,10 @@ if __name__ == "__main__":
     args = argparse.ArgumentParser()
     # directory arguments
     args.add_argument('--source_dir', type=str, default=r'C:\Users\qkrgh\Jupyter\DL-PK\Experiments\dataset\train')
-    args.add_argument('--weight_path', type=str, default=r'C:\Users\qkrgh\Jupyter\DL-PK\Experiments\runs\train\gru\best.pt', help='model weight path')
-    args.add_argument('--run_name', type=str, default='gru_train', help='name of the training run')
-
-    # training arguments
-    args.add_argument('--device', type=str, default='0')
-    args.add_argument('--model', type=str, default='gru', help='lstm, gru, transformer')
-    args.add_argument('--batch_size', type=int, default=32)
-    args.add_argument('--seq_len', type=int, default=240)
+    args.add_argument('--ckpt_path', type=str, default=r'C:\Users\qkrgh\Jupyter\DL-PK\Experiments\runs\train\gru_test\best.pt', help='path to .ckpt')
+    args.add_argument('--run_name', type=str, default='gru_test', help='name of this run')
+    args.add_argument('--device', type=int, default=0, help='cuda index. ignored if cuda device is unavailable')
+    args.add_argument('--num_workers', type=int, default=8, help='number of workers for dataloader')
 
     # logging arguments
     args.add_argument('--plot', action='store_true', help='plot the first batch')

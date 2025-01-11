@@ -41,11 +41,11 @@ def main(args):
 
     # create model
     if args.model == 'lstm':
-        model = LSTMPK().to(device)
+        model = LSTMPK(hidden_dim=args.hidden_dim, num_layers=args.num_layers).to(device)
     elif args.model == 'gru':
-        model = GRUPK().to(device)
-    elif args.model == 'transformer':
-        model = TransformerPK().to(device)
+        model = GRUPK(hidden_dim=args.hidden_dim, num_layers=args.num_layers).to(device)
+    # elif args.model == 'transformer':
+    #     model = TransformerPK().to(device)
     else:
         raise ValueError(f"Unknown model: {args.model}. Must be one of 'lstm', 'gru', 'transformer'")
 
