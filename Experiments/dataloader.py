@@ -94,9 +94,9 @@ class PKPreprocess(object):
         self.scale_age = scale_age
         self.scale_wt = scale_wt
     def __call__(self, sample):
-        # use difference between consecutive time points
-        sample['data'][1:,0] = torch.diff(sample['data'][:,0])
-        sample['data'][0, 0] = 0.0
+        # # use difference between consecutive time points
+        # sample['data'][1:,0] = torch.diff(sample['data'][:,0])
+        # sample['data'][0, 0] = 0.0
         # rescale DV, AGE, WT
         sample['data'][:,2] = sample['data'][:,2] / self.scale_dv
         sample['meta'][1] = sample['meta'][1] / self.scale_age

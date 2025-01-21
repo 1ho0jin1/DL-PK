@@ -1,6 +1,9 @@
 import os
 import yaml
 import argparse
+import matplotlib
+matplotlib.use("Agg")  # use Agg backend for efficiency
+import matplotlib.pyplot as plt
 from tqdm import tqdm
 from pathlib import Path
 
@@ -31,7 +34,7 @@ def main(args):
 
     # load data and create dataloaders
     train_trfm = transforms.Compose([
-        ConsecutiveSampling(args.seq_len),
+        ConsecutiveSampling(args.seq_len+args.pred_steps),
         PKPreprocess(),
     ])
     train_data = PKDataset(os.path.join(args.data_dir, 'train'), transform=train_trfm)
@@ -43,7 +46,7 @@ def main(args):
     if args.model == 'lstm':
         model = LSTMPK(hidden_dim=args.hidden_dim, num_layers=args.num_layers).to(device)
     elif args.model == 'gru':
-        model = GRUPK(hidden_dim=args.hidden_dim, num_layers=args.num_layers).to(device)
+        model = GRUPK(input_dim=args.input_dim, meta_dim=args.meta_dim, hidden_dim=args.hidden_dim, num_layers=args.num_layers).to(device)
     # elif args.model == 'transformer':
     #     model = TransformerPK().to(device)
     else:
@@ -61,6 +64,7 @@ def main(args):
     for epoch in tqdm(range(args.epochs)):
         model.train()
         train_loss = 0.0
+        supervision_ratio = 1 - epoch / args.epochs  # gradually decrease supervision with epochs
         for i, batch in enumerate(train_loader):
             optimizer.zero_grad()
             data = batch['data'].to(device)
@@ -68,32 +72,58 @@ def main(args):
             input = data[:, :-1]                 # input: all time steps except the last one
             target = data[:, -1, 2].view(-1, 1)  # target: predict DV of the last time step
 
-            output = model(input, meta)
-            loss = criterion(output, target)
+            B, N = data.shape[:2]
+            input = data.clone()  # make a copy as we will modify the input
+            loss = 0.0
+            for i in range(args.pred_steps):
+                input_i = input[:, i:i+args.seq_len]
+                target = data[:, i+args.seq_len, 2].view(-1, 1)
+                if i > 0 and np.random.random() < supervision_ratio:  # substitute DV of the last time step with the predicted value
+                    input_i[:, -1, 2] = output.squeeze()
+                else:
+                    input_i[:, -1, 2] = data[:, i+args.seq_len, 2]    # simply use the ground truth value for supervision
+                output = model(input_i, meta)
+                loss += criterion(output, target)
+                
             loss.backward()
             optimizer.step()
             train_loss += loss.item()
-        train_loss /= len(train_loader)
+        train_loss /= len(train_loader) * args.pred_steps
         writer.add_scalar('loss/train', train_loss, epoch)
 
         # validation
         model.eval()
+        valid_loss = 0.0
         with torch.no_grad():
-            valid_loss = 0.0
-            for i, batch in enumerate(valid_loader):
+            for iter, batch in enumerate(valid_loader):
                 data = batch['data'].to(device)
                 meta = batch['meta'].to(device)
                 
                 B, N = data.shape[:2]
                 input = data.clone()  # make a copy as we will modify the input
+                output_logs = data[:, :args.seq_len, 2]
                 for i in range(0, N-args.seq_len):
-                    input_i = input[:, i:i+args.seq_len-1]
-                    target = data[:, i+args.seq_len-1, 2].view(-1, 1)
+                    input_i = input[:, i:i+args.seq_len]
+                    target = data[:, i+args.seq_len, 2].view(-1, 1)
                     if i > 0:  # substitute DV of the last time step with the predicted value
                         input_i[:, -1, 2] = output.squeeze()
                     output = model(input_i, meta)
                     loss = criterion(output, target)
                     valid_loss += loss.item()
+                    output_logs = torch.cat([output_logs, output], dim=1)
+                
+                # visualize
+                if args.plot_every > 0 and iter == 0:
+                    if epoch == 0 or (epoch+1) % args.plot_every == 0:
+                        # plot the first 16 patients
+                        fig, ax = plt.subplots(4,4, figsize=(20,16))
+                        for i in range(16):
+                            loss_i = criterion(data[i, :, 2], output_logs[i]).item()
+                            ax[i//4, i%4].plot(data[i, :, 2].cpu().numpy(), label='Label')
+                            ax[i//4, i%4].plot(output_logs[i].cpu().numpy(), linestyle='--',label='Prediction')
+                            ax[i//4, i%4].set_title(f'ID:{batch["ptid"][i]}, MSE:{loss_i:.3f}')
+                            ax[i//4, i%4].legend(['Label', 'Prediction'])
+                        fig.savefig(args.save_dir / f'val_epoch{epoch}.png', bbox_inches='tight', dpi=300)
 
             valid_loss /= len(valid_loader) * (N - args.seq_len)
             writer.add_scalar('loss/valid', valid_loss, epoch)
@@ -113,19 +143,29 @@ def main(args):
                 "configs": vars(args),
                 "model": model.state_dict(),
                 "optimizer": optimizer.state_dict(),
-                }, os.path.join(args.save_dir, f'best.pt'))
-            
+                }, os.path.join(args.save_dir, 'best.pt'))
+        if args.ckpt_every > 0 and (epoch + 1) % args.ckpt_every == 0:
+            torch.save({
+                "configs": vars(args),
+                "model": model.state_dict(),
+                "optimizer": optimizer.state_dict(),
+                }, os.path.join(args.save_dir, f'epoch{epoch+1}.pt'))
 
 
 
 if __name__ == "__main__":
     args = argparse.ArgumentParser()
     # directory arguments
-    args.add_argument('--data_dir', type=str, default=r'C:\Users\qkrgh\Jupyter\DL-PK\Experiments\dataset')
-    args.add_argument('--yaml_path', type=str, default='', help='path of config.yaml')
-    args.add_argument('--run_name', type=str, default='', help='name of this run')
+    args.add_argument('--data_dir', type=str, default='/home/hj/DL-PK/Experiments/dataset', help='dataset directory where ./train ./valid exists')
+    args.add_argument('--yaml_path', type=str, default='/home/hj/DL-PK/Experiments/configs/gru_250118.yaml', help='path of config.yaml')
+    args.add_argument('--run_name', type=str, default='testrun', help='name of this run')
     args.add_argument('--device', type=int, default=0, help='cuda index. ignored if cuda device is unavailable')
-    args.add_argument('--num_workers', type=int, default=8, help='number of workers for dataloader')
+    args.add_argument('--num_workers', type=int, default=16, help='number of workers for dataloader')
+    
+    # logging arguments
+    args.add_argument('--plot_every', type=int, default=100, help='Plot every N epochs; Do not save when -1')
+    args.add_argument('--ckpt_every', type=int, default=-1, help='Save checkpoints every N epochs; Do not save when -1')
+    
     # miscellaneous arguments: no need to change!
     args.add_argument('--seed', type=int, default=2025)
     args = args.parse_args()

@@ -47,7 +47,7 @@ def main(args):
     if args.model == 'lstm':
         model = LSTMPK(hidden_dim=args.hidden_dim, num_layers=args.num_layers).to(device)
     elif args.model == 'gru':
-        model = GRUPK(hidden_dim=args.hidden_dim, num_layers=args.num_layers).to(device)
+        model = GRUPK(input_dim=args.input_dim, meta_dim=args.meta_dim, hidden_dim=args.hidden_dim, num_layers=args.num_layers).to(device)
     # elif args.model == 'transformer':
     #     model = TransformerPK().to(device)
     else:
@@ -70,11 +70,10 @@ def main(args):
             input = data.clone()  # make a copy as we will modify the input
             output_logs = data[:, :args.seq_len, 2]
             for i in range(0, N-args.seq_len):
-                input_i = input[:, i:i+args.seq_len-1]
-                target = data[:, i+args.seq_len-1, 2].view(-1, 1)
+                input_i = input[:, i:i+args.seq_len]
+                target = data[:, i+args.seq_len, 2].view(-1, 1)
                 if i > 0:  # substitute DV of the last time step with the predicted value
                     input_i[:, -1, 2] = output.squeeze()
-            
                 output = model(input_i, meta)
                 loss = criterion(output, target)
                 output_logs = torch.cat([output_logs, output], dim=1)
@@ -95,8 +94,8 @@ def main(args):
 if __name__ == "__main__":
     args = argparse.ArgumentParser()
     # directory arguments
-    args.add_argument('--source_dir', type=str, default=r'C:\Users\qkrgh\Jupyter\DL-PK\Experiments\dataset\train')
-    args.add_argument('--ckpt_path', type=str, default=r'C:\Users\qkrgh\Jupyter\DL-PK\Experiments\runs\train\gru_test\best.pt', help='path to .ckpt')
+    args.add_argument('--source_dir', type=str, default='/home/hj/DL-PK/Experiments/dataset/test')
+    args.add_argument('--ckpt_path', type=str, default='/home/hj/DL-PK/Experiments/runs/train/gru_250117_meta/best.pt', help='path to .ckpt')
     args.add_argument('--run_name', type=str, default='gru_test', help='name of this run')
     args.add_argument('--device', type=int, default=0, help='cuda index. ignored if cuda device is unavailable')
     args.add_argument('--num_workers', type=int, default=8, help='number of workers for dataloader')

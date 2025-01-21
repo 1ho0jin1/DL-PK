@@ -18,10 +18,10 @@ def main(args):
     id_list = os.listdir(source)
     id_list = np.random.permutation(id_list).tolist()
 
-    # split by 4:3:3
+    # split by 5:2:3
     n = len(id_list) // 10
-    train_list = id_list[:4*n]
-    valid_list = id_list[4*n:7*n]
+    train_list = id_list[:5*n]
+    valid_list = id_list[5*n:7*n]
     test_list = id_list[7*n:]
 
     # create folders for each split and create symlinks
