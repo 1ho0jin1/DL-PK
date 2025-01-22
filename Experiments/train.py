@@ -53,7 +53,10 @@ def main(args):
         raise ValueError(f"Unknown model: {args.model}. Must be one of 'lstm', 'gru', 'transformer'")
 
     # define loss function, optimizer, scheduler
-    criterion = nn.MSELoss()
+    if hasattr(args, "l1loss") and args.l1loss:
+        criterion = nn.L1Loss()
+    else:
+        criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
@@ -160,7 +163,7 @@ if __name__ == "__main__":
     args = argparse.ArgumentParser()
     # directory arguments
     args.add_argument('--data_dir', type=str, default='/home/hj/DL-PK/Experiments/dataset', help='dataset directory where ./train ./valid exists')
-    args.add_argument('--yaml_path', type=str, default='/home/hj/DL-PK/Experiments/configs/gru_250118.yaml', help='path of config.yaml')
+    args.add_argument('--yaml_path', type=str, default='/home/hj/DL-PK/Experiments/configs/gru_250122.yaml', help='path of config.yaml')
     args.add_argument('--run_name', type=str, default='testrun', help='name of this run')
     args.add_argument('--device', type=int, default=0, help='cuda index. ignored if cuda device is unavailable')
     args.add_argument('--num_workers', type=int, default=16, help='number of workers for dataloader')
