@@ -6,14 +6,14 @@ class GRUPK(nn.Module):
     A simple GRU-based model for PK data (time-series).
 
     Args:
-        input_dim (int): Number of input features per time step (e.g., 3 if [TIME, AMT, DV]).
+        input_dim (int): Number of input features per time step (e.g., 4 if [TIME, TAD, AMT, DV]).
         hidden_dim (int): Number of hidden units in the GRU.
         num_layers (int): Number of stacked GRU layers.
         output_dim (int): Number of outputs (e.g., 1 for a single continuous prediction).
         meta_dim (int): Number of meta data dimension.
         bidirectional (bool): If True, use a bidirectional GRU.
     """
-    def __init__(self, input_dim=3, meta_dim=4, hidden_dim=32, num_layers=1, output_dim=1, bidirectional=False):
+    def __init__(self, input_dim=4, meta_dim=4, hidden_dim=32, num_layers=1, output_dim=1, bidirectional=False):
         super().__init__()
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers

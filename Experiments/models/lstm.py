@@ -8,7 +8,7 @@ class LSTMPK(nn.Module):
     A simple LSTM-based model for PK data (time-series).
 
     Args:
-        input_dim (int): Number of input features per time step (e.g., 3 if [TIME, AMT, DV]).
+        input_dim (int): Number of input features per time step (e.g., 4 if [TIME, TAD, AMT, DV]).
         hidden_dim (int): Number of hidden units in the LSTM.
         num_layers (int): Number of stacked LSTM layers.
         output_dim (int): Number of outputs (e.g., 1 for a single continuous prediction).
