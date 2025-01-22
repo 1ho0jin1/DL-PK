@@ -64,7 +64,10 @@ def main(args):
     for epoch in tqdm(range(args.epochs)):
         model.train()
         train_loss = 0.0
-        supervision_ratio = 1 - epoch / args.epochs  # gradually decrease supervision with epochs
+        
+        # curriculum learning: gradually decrease supervision with epochs
+        supervision_ratio = (1 - epoch / args.epochs) * float(args.curriculum)
+
         for i, batch in enumerate(train_loader):
             optimizer.zero_grad()
             data = batch['data'].to(device)
