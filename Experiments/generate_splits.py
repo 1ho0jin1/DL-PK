@@ -29,8 +29,8 @@ def main(args):
         dest = base / split
         os.makedirs(dest, exist_ok=True)
         for id_ in tqdm(lst):
-            os.symlink(source / id_, dest / id_)
-            # shutil.copytree(source / id_, dest / id_) # if you want to copy instead of symlink
+            # os.symlink(source / id_, dest / id_)
+            shutil.copytree(source / id_, dest / id_) # if you want to copy instead of symlink
 
 
 if __name__ == "__main__":

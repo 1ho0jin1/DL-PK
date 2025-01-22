@@ -70,18 +70,18 @@ def main(args):
             data = batch['data'].to(device)
             meta = batch['meta'].to(device)      # TODO: use metadata somehow
             input = data[:, :-1]                 # input: all time steps except the last one
-            target = data[:, -1, 2].view(-1, 1)  # target: predict DV of the last time step
+            target = data[:, -1, 3].view(-1, 1)  # target: predict DV of the last time step
 
             B, N = data.shape[:2]
             input = data.clone()  # make a copy as we will modify the input
             loss = 0.0
             for i in range(args.pred_steps):
                 input_i = input[:, i:i+args.seq_len]
-                target = data[:, i+args.seq_len, 2].view(-1, 1)
+                target = data[:, i+args.seq_len, 3].view(-1, 1)
                 if i > 0 and np.random.random() < supervision_ratio:  # substitute DV of the last time step with the predicted value
-                    input_i[:, -1, 2] = output.squeeze()
+                    input_i[:, -1, 3] = output.squeeze()
                 else:
-                    input_i[:, -1, 2] = data[:, i+args.seq_len, 2]    # simply use the ground truth value for supervision
+                    input_i[:, -1, 3] = data[:, i+args.seq_len, 3]    # simply use the ground truth value for supervision
                 output = model(input_i, meta)
                 loss += criterion(output, target)
                 
@@ -101,12 +101,12 @@ def main(args):
                 
                 B, N = data.shape[:2]
                 input = data.clone()  # make a copy as we will modify the input
-                output_logs = data[:, :args.seq_len, 2]
+                output_logs = data[:, :args.seq_len, 3]
                 for i in range(0, N-args.seq_len):
                     input_i = input[:, i:i+args.seq_len]
-                    target = data[:, i+args.seq_len, 2].view(-1, 1)
+                    target = data[:, i+args.seq_len, 3].view(-1, 1)
                     if i > 0:  # substitute DV of the last time step with the predicted value
-                        input_i[:, -1, 2] = output.squeeze()
+                        input_i[:, -1, 3] = output.squeeze()
                     output = model(input_i, meta)
                     loss = criterion(output, target)
                     valid_loss += loss.item()
@@ -118,8 +118,8 @@ def main(args):
                         # plot the first 16 patients
                         fig, ax = plt.subplots(4,4, figsize=(20,16))
                         for i in range(16):
-                            loss_i = criterion(data[i, :, 2], output_logs[i]).item()
-                            ax[i//4, i%4].plot(data[i, :, 2].cpu().numpy(), label='Label')
+                            loss_i = criterion(data[i, :, 3], output_logs[i]).item()
+                            ax[i//4, i%4].plot(data[i, :, 3].cpu().numpy(), label='Label')
                             ax[i//4, i%4].plot(output_logs[i].cpu().numpy(), linestyle='--',label='Prediction')
                             ax[i//4, i%4].set_title(f'ID:{batch["ptid"][i]}, MSE:{loss_i:.3f}')
                             ax[i//4, i%4].legend(['Label', 'Prediction'])

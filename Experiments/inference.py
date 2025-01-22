@@ -68,12 +68,12 @@ def main(args):
             
             B, N = data.shape[:2]
             input = data.clone()  # make a copy as we will modify the input
-            output_logs = data[:, :args.seq_len, 2]
+            output_logs = data[:, :args.seq_len, 3]
             for i in range(0, N-args.seq_len):
                 input_i = input[:, i:i+args.seq_len]
-                target = data[:, i+args.seq_len, 2].view(-1, 1)
+                target = data[:, i+args.seq_len, 3].view(-1, 1)
                 if i > 0:  # substitute DV of the last time step with the predicted value
-                    input_i[:, -1, 2] = output.squeeze()
+                    input_i[:, -1, 3] = output.squeeze()
                 output = model(input_i, meta)
                 loss = criterion(output, target)
                 output_logs = torch.cat([output_logs, output], dim=1)
@@ -81,7 +81,7 @@ def main(args):
             if iter == 0 and args.plot:
                 # plot the first batch
                 for i in range(B):
-                    plt.plot(data[i, :, 2].cpu().numpy(), label='Label')
+                    plt.plot(data[i, :, 3].cpu().numpy(), label='Label')
                     plt.plot(output_logs[i].cpu().numpy(), linestyle='--',label='Prediction')
                     plt.title(f'ID: {batch["ptid"][i]}')
                     plt.legend(['Label', 'Prediction'])
