@@ -16,17 +16,17 @@ def process_patient_ids(patient_ids, data, data_aux, columns_var, columns_fixed,
         data_id = data_id[columns_var].to_numpy()
  
         # deal with NaNs for AMT
-        data_id[np.isnan(data_id[:,1]), 1] = 0.0  # NaN for AMT means 0
+        data_id[np.isnan(data_id[:,2]), 2] = 0.0  # NaN for AMT means 0
         # deal with NaNs for DV
-        dv_nan_idx = np.isnan(data_id[:,2])
+        dv_nan_idx = np.isnan(data_id[:,3])
         if fn == 'ground_truth_250110.csv':
-            data_id[dv_nan_idx, 2] = data_id[np.where(dv_nan_idx)[0]-1, 2]
+            data_id[dv_nan_idx, 3] = data_id[np.where(dv_nan_idx)[0]-1, 3]
         elif fn == 'observation_250110.csv':
             timestamp = data_id[dv_nan_idx, 0]
             data_aux_id = data_aux[data_aux['ID'] == id_][columns_var].to_numpy()
             sorter = np.argsort(data_aux_id[:,0])
             aux_idx = np.searchsorted(data_aux_id[:,0], timestamp, sorter=sorter)
-            data_id[dv_nan_idx, 2] = data_aux_id[aux_idx, 2]
+            data_id[dv_nan_idx, 3] = data_aux_id[aux_idx, 3]
        
         # # check DV correctness
         # if (data_id[:, 2] > 1000).sum().any():
@@ -39,9 +39,9 @@ def process_patient_ids(patient_ids, data, data_aux, columns_var, columns_fixed,
         SEX, AGE, WT, Cr = meta_id[0]
         with open(dest_id / 'meta.txt', 'w') as fp:
             fp.write(f"{int(SEX)} {int(AGE)} {WT:.4f} {Cr:.4f}\n")
-        for TIME, AMT, DV in data_id:
+        for TIME, TAD, AMT, DV in data_id:
             with open(dest_id / 'data.txt', 'a') as fp:
-                fp.write(f"{TIME:.4f} {AMT:.4f} {DV:.4f}\n")
+                fp.write(f"{TIME:.4f} {TAD:.4f} {AMT:.4f} {DV:.4f}\n")
  
 def main():
     num_workers = min(16, os.cpu_count())
@@ -55,7 +55,7 @@ def main():
         else:
             data_aux = None
  
-        columns_var = ['TIME', 'AMT', 'DV']  # We drop TAD as it can be derived from TIME and AMT
+        columns_var = ['TIME', 'TAD', 'AMT', 'DV']
         columns_fixed = ['SEX', 'AGE', 'WT', 'Cr']  # These columns are fixed for each ID
  
         unique_ids = data['ID'].unique()

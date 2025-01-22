@@ -56,7 +56,7 @@ class PKDataset(Dataset):
 
         sample = {
             'ptid': patient_id,   # patient ID
-            'data': data_tensor,  # shape: (num_rows, 3)
+            'data': data_tensor,  # shape: (num_rows, 4)
             'meta': meta_tensor   # shape: (4,)
         }
 
@@ -83,7 +83,7 @@ class ConsecutiveSampling(object):
 
 class PKPreprocess(object):
     """
-    sample['data']: (N,3) array, each row is ["TIME", "AMT", "DV"]
+    sample['data']: (N,4) array, each row is ["TIME", "TAD", "AMT", "DV"]
     TIME: use difference between consecutive time points instead of absolute value
     DV  : re-scale by scale_dv set to 100 (mg/L)
     AGE : re-scale by scale_age set to 100 (yrs)
@@ -98,7 +98,7 @@ class PKPreprocess(object):
         # sample['data'][1:,0] = torch.diff(sample['data'][:,0])
         # sample['data'][0, 0] = 0.0
         # rescale DV, AGE, WT
-        sample['data'][:,2] = sample['data'][:,2] / self.scale_dv
+        sample['data'][:,3] = sample['data'][:,3] / self.scale_dv
         sample['meta'][1] = sample['meta'][1] / self.scale_age
         sample['meta'][2] = sample['meta'][2] / self.scale_wt
         return sample
