@@ -80,13 +80,14 @@ def main(args):
 
             if iter == 0 and args.plot:
                 # plot the first batch
-                for i in range(B):
-                    plt.plot(data[i, :, 3].cpu().numpy(), label='Label')
-                    plt.plot(output_logs[i].cpu().numpy(), linestyle='--',label='Prediction')
-                    plt.title(f'ID: {batch["ptid"][i]}')
-                    plt.legend(['Label', 'Prediction'])
-                    plt.savefig(args.save_dir / f'ptid_{batch["ptid"][i]}.png')
-                    plt.close()
+                fig, ax = plt.subplots(4,4, figsize=(20,16))
+                for i in range(16):
+                    loss_i = criterion(data[i, :, 3], output_logs[i]).item()
+                    ax[i//4, i%4].plot(data[i, :, 3].cpu().numpy(), label='Label')
+                    ax[i//4, i%4].plot(output_logs[i].cpu().numpy(), linestyle='--',label='Prediction')
+                    ax[i//4, i%4].set_title(f'ID:{batch["ptid"][i]}, MSE:{loss_i:.3f}')
+                    ax[i//4, i%4].legend(['Label', 'Prediction'])
+                fig.savefig(args.save_dir / f'inference.png', bbox_inches='tight', dpi=300)
             break
 
 
