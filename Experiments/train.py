@@ -51,6 +51,11 @@ def main(args):
     #     model = TransformerPK().to(device)
     else:
         raise ValueError(f"Unknown model: {args.model}. Must be one of 'lstm', 'gru', 'transformer'")
+    
+    # load model weights
+    if args.ckpt_path:
+        ckpt = torch.load(args.ckpt_path)
+        model.load_state_dict(ckpt['model'])
 
     # define loss function, optimizer, scheduler
     if hasattr(args, "l1loss") and args.l1loss:
@@ -130,6 +135,7 @@ def main(args):
                             ax[i//4, i%4].set_title(f'ID:{batch["ptid"][i]}, MSE:{loss_i:.3f}')
                             ax[i//4, i%4].legend(['Label', 'Prediction'])
                         fig.savefig(args.save_dir / f'val_epoch{epoch}.png', bbox_inches='tight', dpi=300)
+                        plt.close()
 
             valid_loss /= len(valid_loader) * (N - args.seq_len)
             writer.add_scalar('loss/valid', valid_loss, epoch)
@@ -162,8 +168,9 @@ def main(args):
 if __name__ == "__main__":
     args = argparse.ArgumentParser()
     # directory arguments
-    args.add_argument('--data_dir', type=str, default='/home/hj/DL-PK/Experiments/dataset', help='dataset directory where ./train ./valid exists')
-    args.add_argument('--yaml_path', type=str, default='/home/hj/DL-PK/Experiments/configs/gru_250122.yaml', help='path of config.yaml')
+    args.add_argument('--data_dir', type=str, default='', help='dataset directory where ./train ./valid exists')
+    args.add_argument('--yaml_path', type=str, default='', help='path of config.yaml')
+    args.add_argument('--ckpt_path', type=str, default='', help='pretrained checkpoint path')
     args.add_argument('--run_name', type=str, default='testrun', help='name of this run')
     args.add_argument('--device', type=int, default=0, help='cuda index. ignored if cuda device is unavailable')
     args.add_argument('--num_workers', type=int, default=16, help='number of workers for dataloader')
