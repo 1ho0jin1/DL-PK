@@ -47,6 +47,8 @@ def main(args):
         model = LSTMPK(hidden_dim=args.hidden_dim, num_layers=args.num_layers).to(device)
     elif args.model == 'gru':
         model = GRUPK(input_dim=args.input_dim, meta_dim=args.meta_dim, hidden_dim=args.hidden_dim, num_layers=args.num_layers).to(device)
+    elif args.model == 'neuralode':
+        model = NeuralODE(input_dim=args.input_dim, meta_dim=args.meta_dim, hidden_dim=args.hidden_dim).to(device)
     # elif args.model == 'transformer':
     #     model = TransformerPK().to(device)
     else:

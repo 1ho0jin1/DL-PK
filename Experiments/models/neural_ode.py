@@ -1,18 +1,18 @@
-"""
-Code originally from:
-https://github.com/jameslu01/Neural_PK/blob/main/5fold_models/Neural-ODE/model.py
-"""
-import os
 import torch
 import torch.nn as nn
-
+from torchdiffeq import odeint
 
 
 class ODEFunc(nn.Module):
+    """
+    Defines the ODE function for the dynamics.
 
+    Args:
+        input_dim (int): Number of input features.
+        hidden_dim (int): Number of hidden units in the ODE function.
+    """
     def __init__(self, input_dim, hidden_dim):
-        super(ODEFunc, self).__init__()
-
+        super().__init__()
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.SELU(),
@@ -22,94 +22,163 @@ class ODEFunc(nn.Module):
             nn.SELU(),
             nn.Linear(hidden_dim, input_dim)
         )
-
+        
+        # Initialize weights
         for m in self.net.modules():
             if isinstance(m, nn.Linear):
                 nn.init.normal_(m.weight, mean=0, std=0.001)
                 nn.init.constant_(m.bias, val=0.5)
 
     def forward(self, t, x):
-        # print(x)
+        """
+        Args:
+            t (torch.Tensor): Time steps.
+            x (torch.Tensor): Input tensor of shape (batch_size, input_dim).
+        Returns:
+            torch.Tensor: Derivative of x with respect to t.
+        """
         return self.net(x)
 
 
 class Encoder(nn.Module):
-    def __init__(self, input_dim, output_dim, hidden_dim, device=torch.device("cpu")):
-        super(Encoder, self).__init__()
-
-        self.output_dim = output_dim
-        self.input_dim = input_dim
-        self.hidden_dim = hidden_dim
+    """
+    Encodes the input sequence into two parts (mean, std) for a latent representation.
+    Args:
+        input_dim (int): Number of input features per time step.
+        meta_dim (int): Number of meta features to concatenate.
+        hidden_dim (int): Number of hidden units in the GRU.
+        hidden_dim (int): Dimension of the latent space.
+        device (torch.device): Device for computation (default: CPU).
+    """
+    def __init__(self, input_dim, meta_dim, hidden_dim, device=torch.device("cpu")):
+        super().__init__()
         self.device = device
+        self.input_dim = input_dim
+        self.meta_dim = meta_dim
+        self.hidden_dim = hidden_dim
 
-        self.hiddens_to_output = nn.Sequential(
-            nn.Linear(self.hidden_dim, self.hidden_dim),
+        self.gru = nn.GRU(input_dim+meta_dim, hidden_dim, batch_first=True)
+        self.fc = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(self.hidden_dim, self.output_dim),
-        )
-        init_network_weights(self.hiddens_to_output, std=0.001)
+            nn.Linear(hidden_dim, 2*hidden_dim))  # 2*hidden_dim -> [mean, std]
 
-        # self.rnn = nn.RNN(self.input_dim, self.hidden_dim, nonlinearity="relu").to(device)
-        self.rnn = nn.GRU(self.input_dim, self.hidden_dim).to(device)
+    def forward(self, x, meta=None):
+        """
+        Args:
+            x (torch.Tensor): Shape (batch_size, seq_len, input_dim).
+            meta (torch.Tensor): Shape (batch_size, meta_dim) or None.
+        Returns:
+            torch.Tensor: Model output of shape (batch_size, output_dim).
+        """
+        # append meta data to input
+        if meta is not None:
+            meta = torch.tile(meta.unsqueeze(1), (1,x.shape[1],1))
+            x = torch.cat((x, meta), dim=-1)
 
-    def forward(self, data):
-        data = data.permute(1, 0, 2)
-        data = reverse(data)
-        output_rnn, _ = self.rnn(data)
-        #print(output_rnn)
-        outputs = self.hiddens_to_output(output_rnn[-1])
-        #print(outputs)
+        _, h = self.gru(x)  # h: (1, batch_size, hidden_dim)
+        h = h.squeeze(0)  # Remove the first dimension
+        out = self.fc(h)  # shape: (batch_size, 2 * hidden_dim)
+        mean, std = out[:, :self.hidden_dim], out[:, self.hidden_dim:]
+        return mean, std
+
+
+class NeuralODE(nn.Module):
+    """
+    Full Neural-ODE model combining encoder, ODE function, and a linear layer.
+
+    Args:
+        input_dim (int): Number of input features per time step.
+        meta_dim (int): Number of meta features to concatenate.
+        hidden_dim (int): Number of hidden units in the encoder and ODE function.
+        output_dim (int): Number of output features.
+    """
+    def __init__(self, input_dim, meta_dim, hidden_dim, output_dim=1, tol=1e-3):
+        super().__init__()
+        self.input_dim = input_dim
+        self.meta_dim = meta_dim
+        self.hidden_dim = hidden_dim
+        self.output_dim = output_dim
         
-        return outputs
+        # Initialize the encoder, ODE function, and FC layer
+        self.encoder = Encoder(input_dim, meta_dim, hidden_dim, hidden_dim)
+        self.ode_func = ODEFunc(hidden_dim, hidden_dim)
+        self.fc = nn.Linear(hidden_dim + meta_dim, output_dim)
 
+        # tolerance for the ODE solver
+        self.tol = tol
+    
+    def sample_standard_gaussian(self, mean, std):
+        device = mean.device
+        d = torch.distributions.normal.Normal(
+                torch.Tensor([0.]).to(device),
+                torch.Tensor([1.]).to(device))
+        r = d.sample(mean.size()).squeeze(-1)
+        return r * std.float() + mean.float()
 
-class Classifier(nn.Module):
-
-    def __init__(self, latent_dim, output_dim):
-        super(Classifier, self).__init__()
-        self.net = nn.Sequential(
-            nn.Linear(latent_dim + 20, 32),
-            nn.SELU(),
-            nn.Linear(32, output_dim),
-        )
+    def forward(self, x, meta=None):
+        """
+        Args:
+            x (torch.Tensor): Shape (batch_size, seq_len, input_dim), input_dim: [TIME, TAD, AMT, DV]
+            meta (torch.Tensor): Shape (batch_size, meta_dim) or None, meta_dim: [SEX, AGE, WT, Cr]
+        Returns:
+            torch.Tensor: Model output of shape (batch_size, output_dim).
+        """
+        B, N = x.shape[:2]  # B: batch size, N: sequence length
+        times = x[:, :, 0]
+        doses = x[:, :, 2]
         
-        init_network_weights(self.net, std=0.001)
+        # 1) Encode input into mean/log_var for the initial latent distribution
+        qz0_mean, qz0_var = self.encoder(x, meta)
 
-    def forward(self, z, cmax_time):
-        cmax_time = cmax_time.repeat(z.size(0), 1, 1)
-        z = torch.cat([z, cmax_time], 2)
-        return self.net(z)
+        # 2) Sample initial latent z0
+        z0 = self.sample_standard_gaussian(qz0_mean, qz0_var)
 
+        # 3) Solve ODE for each time step
+        # NOTE: odeint cannot handle batched inputs, so we loop over the batch dimension
+        solves = torch.zeros((B,N,self.hidden_dim), device=x.device)
+        for b in range(B):
+            z0_ = z0[b]
+            time_ = times[b]
+            dose_ = doses[b]
+            solves_ = z0_.unsqueeze(0).clone()  # trajectory of the ODE solution with initial value z0
+            for idx, (time0, time1) in enumerate(zip(time_[:-1], time_[1:])):
+                z0_ += dose_[idx]
+                time_interval = torch.Tensor([time0 - time0, time1 - time0])
+                sol = odeint(self.ode_func, z0_, time_interval, rtol=self.tol, atol=self.tol)
+                z0_ = sol[-1].clone()
+                solves_ = torch.cat([solves_, sol[-1:, :]], 0)
+            solves[b] = solves_
 
-
-def load_model(ckpt_path, encoder=None, ode_func=None, classifier=None, device="cpu"):
-    if not os.path.exists(ckpt_path):
-        raise Exception("Checkpoint " + ckpt_path + " does not exist.")
-
-    checkpt = torch.load(ckpt_path)
-    if encoder is not None:
-        encoder_state = checkpt["encoder"]
-        encoder.load_state_dict(encoder_state)
-        encoder.to(device)
-
-    if ode_func is not None:
-        ode_state = checkpt["ode"]
-        ode_func.load_state_dict(ode_state)
-        ode_func.to(device)
-
-    if classifier is not None:
-        classifier_state = checkpt["classifier"]
-        classifier.load_state_dict(classifier_state)
-        classifier.to(device)
+        # simply use the solution of the last timestep as input
+        latent = torch.cat((solves[:,-1,:], meta), dim=-1)
+        pred = self.fc(latent)
+        return pred
 
 
-def init_network_weights(net, std = 0.1):
-    for m in net.modules():
-        if isinstance(m, nn.Linear):
-            nn.init.normal_(m.weight, mean=0, std=std)
-            nn.init.constant_(m.bias, val=0)
 
+if __name__ == "__main__":
+    import sys
+    sys.path.append('/home/hj/DL-PK/Experiments')
+    from dataloader import *
+    # load data and create dataloaders
+    train_trfm = transforms.Compose([
+        ConsecutiveSampling(24+24),
+        PKPreprocess(),
+    ])
+    train_data = PKDataset('/home/hj/DL-PK/Experiments/dataset/train', transform=train_trfm)
+    train_loader = DataLoader(train_data, batch_size=7, shuffle=True)
+    batch = next(iter(train_loader))
+    data = batch['data']
+    meta = batch['meta']
+    print(data.shape, meta.shape)
+    
+    
+    # create model
+    model = NeuralODE(input_dim=4, meta_dim=4, hidden_dim=32, output_dim=1)
 
-def reverse(tensor):
-    idx = [i for i in range(tensor.size(0)-1, -1, -1)]
-    return tensor[idx]
+    with torch.no_grad():
+        output = model(data, meta)
+    print(output.shape)
+    
+    print()

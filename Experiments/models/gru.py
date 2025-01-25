@@ -29,15 +29,6 @@ class GRUPK(nn.Module):
 
         factor = 2 if bidirectional else 1
         self.fc = nn.Linear(hidden_dim * factor, output_dim)
-        # self.fc = nn.Sequential(
-        #     nn.Linear(hidden_dim * factor, hidden_dim * factor // 2),
-        #     nn.BatchNorm1d(hidden_dim * factor // 2),
-        #     nn.SiLU(),
-        #     nn.Linear(hidden_dim * factor // 2, hidden_dim * factor // 4),
-        #     nn.BatchNorm1d(hidden_dim * factor // 4),
-        #     nn.SiLU(),
-        #     nn.Linear(hidden_dim * factor // 4, output_dim)
-        # )
 
     def forward(self, x, meta=None):
         """
@@ -51,8 +42,9 @@ class GRUPK(nn.Module):
         # output shape: (batch_size, seq_len, hidden_dim * num_directions)
         
         # append meta data to input
-        meta = torch.tile(meta.unsqueeze(1), (1,x.shape[1],1))
-        x = torch.cat((x, meta), dim=-1)
+        if meta is not None:
+            meta = torch.tile(meta.unsqueeze(1), (1,x.shape[1],1))
+            x = torch.cat((x, meta), dim=-1)
         
         out, h = self.gru(x)
 
@@ -64,3 +56,32 @@ class GRUPK(nn.Module):
 
         pred = self.fc(last_out)  # shape: (batch_size, output_dim)
         return pred
+
+
+
+
+if __name__ == "__main__":
+    import sys
+    sys.path.append('/home/hj/DL-PK/Experiments')
+    from dataloader import *
+    # load data and create dataloaders
+    train_trfm = transforms.Compose([
+        ConsecutiveSampling(24+24),
+        PKPreprocess(),
+    ])
+    train_data = PKDataset('/home/hj/DL-PK/Experiments/dataset/train', transform=train_trfm)
+    train_loader = DataLoader(train_data, batch_size=7, shuffle=True)
+    batch = next(iter(train_loader))
+    data = batch['data']
+    meta = batch['meta']
+    print(data.shape, meta.shape)
+    
+    
+    # create model
+    model = GRUPK(input_dim=4, meta_dim=4, hidden_dim=32, num_layers=1, output_dim=1, bidirectional=False)
+
+    with torch.no_grad():
+        output = model(data, meta)
+    print(output.shape)
+    
+    print()
