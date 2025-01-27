@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 from torchdiffeq import odeint
+from functools import partial
+
 
 
 class ODEFunc(nn.Module):
@@ -29,15 +31,23 @@ class ODEFunc(nn.Module):
                 nn.init.normal_(m.weight, mean=0, std=0.001)
                 nn.init.constant_(m.bias, val=0.5)
 
-    def forward(self, t, x):
+    def forward(self, t, x, dose_time, dose_amt):
         """
         Args:
-            t (torch.Tensor): Time steps.
+            t (torch.Tensor): Time for current step
             x (torch.Tensor): Input tensor of shape (batch_size, input_dim).
+            dose_time (torch.Tensor): Time of dose administration of shape (N,)
+            dose_amt (torch.Tensor): Amount of dose administered of shape (N,)
         Returns:
             torch.Tensor: Derivative of x with respect to t.
         """
-        return self.net(x)
+        dxdt = self.net(x)
+
+        # add dose effect
+        mask = dose_time.le(t)
+        dose_accum = (dose_amt * mask).sum()  # accumulated dose until the current time step
+        dxdt = dxdt + dose_accum
+        return dxdt
 
 
 class Encoder(nn.Module):
@@ -135,20 +145,15 @@ class NeuralODE(nn.Module):
         z0 = self.sample_standard_gaussian(qz0_mean, qz0_var, device)
 
         # 3) Solve ODE for each time step
-        # NOTE: odeint cannot handle batched inputs, so we loop over the batch dimension
+        # NOTE: each sample may have different timestamps, so we loop over the batch dimension
         solves = torch.zeros((B,N,self.hidden_dim), device=x.device)
         for b in range(B):
-            z0_ = z0[b]
-            time_ = times[b]
-            dose_ = doses[b]
-            solves_ = z0_.unsqueeze(0).clone()  # trajectory of the ODE solution with initial value z0
-            for idx, (time0, time1) in enumerate(zip(time_[:-1], time_[1:])):
-                z0_ = z0_ + dose_[idx]
-                time_interval = torch.Tensor([time0 - time0, time1 - time0]).to(device)
-                sol = odeint(self.ode_func, z0_, time_interval, rtol=self.tol, atol=self.tol)
-                z0_ = sol[-1].clone()
-                solves_ = torch.cat([solves_, sol[-1:, :]], 0)
-            solves[b] = solves_
+            z0_b = z0[b]
+            times_b = times[b]
+            doses_b = doses[b]
+            ode_func_b = partial(self.ode_func, dose_time=times_b, dose_amt=doses_b)
+            solves_b = odeint(ode_func_b, z0_b, times_b, rtol=self.tol, atol=self.tol)
+            solves[b] = solves_b
 
         # simply use the solution of the last timestep as input
         latent = torch.cat((solves[:,-1,:], meta), dim=-1)
@@ -160,14 +165,16 @@ class NeuralODE(nn.Module):
 if __name__ == "__main__":
     import sys
     sys.path.append('/home/hj/DL-PK/Experiments')
+    from utils.general import set_random_seed
     from dataloader import *
+    set_random_seed(2025)
     # load data and create dataloaders
     train_trfm = transforms.Compose([
-        ConsecutiveSampling(24+24),
+        ConsecutiveSampling(16),
         PKPreprocess(),
     ])
     train_data = PKDataset('/home/hj/DL-PK/Experiments/dataset/train', transform=train_trfm)
-    train_loader = DataLoader(train_data, batch_size=7, shuffle=True)
+    train_loader = DataLoader(train_data, batch_size=7, shuffle=False)
     batch = next(iter(train_loader))
     data = batch['data']
     meta = batch['meta']
@@ -180,5 +187,6 @@ if __name__ == "__main__":
     with torch.no_grad():
         output = model(data, meta)
     print(output.shape)
+    print(output)
     
     print()

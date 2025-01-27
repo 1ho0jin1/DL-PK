@@ -71,14 +71,15 @@ def main(args):
     writer = SummaryWriter(args.save_dir)
 
     # training loop
-    for epoch in tqdm(range(args.epochs)):
+    for epoch in tqdm(range(args.epochs), desc='Epoch', position=0):
         model.train()
         train_loss = 0.0
         
         # curriculum learning: gradually decrease supervision with epochs
         supervision_ratio = (1 - epoch / args.epochs) * float(args.curriculum)
 
-        for i, batch in enumerate(train_loader):
+        pbar_train = tqdm(enumerate(train_loader), position=1, leave=False)
+        for bi, batch in pbar_train:
             optimizer.zero_grad()
             data = batch['data'].to(device)
             meta = batch['meta'].to(device)      # TODO: use metadata somehow
@@ -98,18 +99,20 @@ def main(args):
                     input_i[:, -1, 3] = data[:, i+args.seq_len, 3]    # simply use the ground truth value for supervision
                 output = model(input_i, meta)
                 loss += criterion(output, target)
-                
+            
             loss.backward()
             optimizer.step()
-            train_loss += loss.item()
-        train_loss /= len(train_loader) * args.pred_steps
+            train_loss += loss.item() / args.pred_steps
+            pbar_train.set_description(f"Train Loss:{train_loss/(bi+1):.5f}")
+        train_loss /= len(train_loader)
         writer.add_scalar('loss/train', train_loss, epoch)
 
         # validation
         model.eval()
         valid_loss = 0.0
+        pbar_valid = tqdm(enumerate(valid_loader), position=1, leave=False)
         with torch.no_grad():
-            for iter, batch in enumerate(valid_loader):
+            for bi, batch in pbar_valid:
                 data = batch['data'].to(device)
                 meta = batch['meta'].to(device)
                 
@@ -123,11 +126,11 @@ def main(args):
                         input_i[:, -1, 3] = output.squeeze()
                     output = model(input_i, meta)
                     loss = criterion(output, target)
-                    valid_loss += loss.item()
+                    valid_loss += loss.item() / (N - args.seq_len)
                     output_logs = torch.cat([output_logs, output], dim=1)
                 
                 # visualize
-                if args.plot_every > 0 and iter == 0:
+                if args.plot_every > 0 and bi == 0:
                     if epoch == 0 or (epoch+1) % args.plot_every == 0:
                         # plot the first 16 patients
                         fig, ax = plt.subplots(4,4, figsize=(20,16))
@@ -135,15 +138,18 @@ def main(args):
                             loss_i = criterion(data[i, :, 3], output_logs[i]).item()
                             ax[i//4, i%4].plot(data[i, :, 3].cpu().numpy(), label='Label')
                             ax[i//4, i%4].plot(output_logs[i].cpu().numpy(), linestyle='--',label='Prediction')
-                            ax[i//4, i%4].set_title(f'ID:{batch["ptid"][i]}, MSE:{loss_i:.3f}')
+                            ax[i//4, i%4].set_title(f'ID:{batch["ptid"][i]}, MSE:{loss_i:.5f}')
                             ax[i//4, i%4].legend(['Label', 'Prediction'])
                         fig.savefig(args.save_dir / f'val_epoch{epoch}.png', bbox_inches='tight', dpi=300)
                         plt.close()
+                
+                # update progress bar
+                pbar_valid.set_description(f"Valid Loss:{valid_loss/(bi+1):.5f}")
 
-            valid_loss /= len(valid_loader) * (N - args.seq_len)
+            valid_loss /= len(valid_loader)
             writer.add_scalar('loss/valid', valid_loss, epoch)
 
-        tqdm.write(f"Epoch {epoch}: train_loss={train_loss:.4f}, valid_loss={valid_loss:.4f}")
+        tqdm.write(f"Epoch {epoch}: train_loss={train_loss:.5f}, valid_loss={valid_loss:.5f}")
         
         # log learning rate
         writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)
@@ -159,12 +165,20 @@ def main(args):
                 "model": model.state_dict(),
                 "optimizer": optimizer.state_dict(),
                 }, os.path.join(args.save_dir, 'best.pt'))
+        # save model if checkpoint_every is set
         if args.ckpt_every > 0 and (epoch + 1) % args.ckpt_every == 0:
             torch.save({
                 "configs": vars(args),
                 "model": model.state_dict(),
                 "optimizer": optimizer.state_dict(),
                 }, os.path.join(args.save_dir, f'epoch{epoch+1}.pt'))
+        # save last epoch
+        if epoch == args.epochs - 1:
+            torch.save({
+                "configs": vars(args),
+                "model": model.state_dict(),
+                "optimizer": optimizer.state_dict(),
+                }, os.path.join(args.save_dir, 'last.pt'))
 
 
 
