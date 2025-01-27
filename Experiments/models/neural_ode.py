@@ -108,8 +108,7 @@ class NeuralODE(nn.Module):
         # tolerance for the ODE solver
         self.tol = tol
     
-    def sample_standard_gaussian(self, mean, std):
-        device = mean.device
+    def sample_standard_gaussian(self, mean, std, device):
         d = torch.distributions.normal.Normal(
                 torch.Tensor([0.]).to(device),
                 torch.Tensor([1.]).to(device))
@@ -125,6 +124,7 @@ class NeuralODE(nn.Module):
             torch.Tensor: Model output of shape (batch_size, output_dim).
         """
         B, N = x.shape[:2]  # B: batch size, N: sequence length
+        device = x.device
         times = x[:, :, 0]
         doses = x[:, :, 2]
         
@@ -132,7 +132,7 @@ class NeuralODE(nn.Module):
         qz0_mean, qz0_var = self.encoder(x, meta)
 
         # 2) Sample initial latent z0
-        z0 = self.sample_standard_gaussian(qz0_mean, qz0_var)
+        z0 = self.sample_standard_gaussian(qz0_mean, qz0_var, device)
 
         # 3) Solve ODE for each time step
         # NOTE: odeint cannot handle batched inputs, so we loop over the batch dimension
@@ -143,8 +143,8 @@ class NeuralODE(nn.Module):
             dose_ = doses[b]
             solves_ = z0_.unsqueeze(0).clone()  # trajectory of the ODE solution with initial value z0
             for idx, (time0, time1) in enumerate(zip(time_[:-1], time_[1:])):
-                z0_ += dose_[idx]
-                time_interval = torch.Tensor([time0 - time0, time1 - time0])
+                z0_ = z0_ + dose_[idx]
+                time_interval = torch.Tensor([time0 - time0, time1 - time0]).to(device)
                 sol = odeint(self.ode_func, z0_, time_interval, rtol=self.tol, atol=self.tol)
                 z0_ = sol[-1].clone()
                 solves_ = torch.cat([solves_, sol[-1:, :]], 0)

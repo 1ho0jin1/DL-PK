@@ -47,7 +47,7 @@ def main(args):
         model = LSTMPK(hidden_dim=args.hidden_dim, num_layers=args.num_layers).to(device)
     elif args.model == 'gru':
         model = GRUPK(input_dim=args.input_dim, meta_dim=args.meta_dim, hidden_dim=args.hidden_dim, num_layers=args.num_layers).to(device)
-    elif args.model == 'neuralode':
+    elif args.model == 'node':
         model = NeuralODE(input_dim=args.input_dim, meta_dim=args.meta_dim, hidden_dim=args.hidden_dim).to(device)
     # elif args.model == 'transformer':
     #     model = TransformerPK().to(device)
@@ -91,6 +91,7 @@ def main(args):
             for i in range(args.pred_steps):
                 input_i = input[:, i:i+args.seq_len]
                 target = data[:, i+args.seq_len, 3].view(-1, 1)
+                
                 if i > 0 and np.random.random() < supervision_ratio:  # substitute DV of the last time step with the predicted value
                     input_i[:, -1, 3] = output.squeeze()
                 else:
@@ -170,8 +171,8 @@ def main(args):
 if __name__ == "__main__":
     args = argparse.ArgumentParser()
     # directory arguments
-    args.add_argument('--data_dir', type=str, default='', help='dataset directory where ./train ./valid exists')
-    args.add_argument('--yaml_path', type=str, default='', help='path of config.yaml')
+    args.add_argument('--data_dir', type=str, default='/home/hj/DL-PK/Experiments/dataset', help='dataset directory where ./train ./valid exists')
+    args.add_argument('--yaml_path', type=str, default='/home/hj/DL-PK/Experiments/configs/node_250126.yaml', help='path of config.yaml')
     args.add_argument('--ckpt_path', type=str, default='', help='pretrained checkpoint path')
     args.add_argument('--run_name', type=str, default='testrun', help='name of this run')
     args.add_argument('--device', type=int, default=0, help='cuda index. ignored if cuda device is unavailable')
