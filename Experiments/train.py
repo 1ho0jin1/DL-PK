@@ -71,7 +71,8 @@ def main(args):
     writer = SummaryWriter(args.save_dir)
 
     # training loop
-    for epoch in tqdm(range(args.epochs), desc='Epoch', position=0):
+    pbar_epoch = tqdm(range(args.epochs), position=0)
+    for epoch in pbar_epoch:
         model.train()
         train_loss = 0.0
         
@@ -108,48 +109,49 @@ def main(args):
         writer.add_scalar('loss/train', train_loss, epoch)
 
         # validation
-        model.eval()
-        valid_loss = 0.0
-        pbar_valid = tqdm(enumerate(valid_loader), position=1, leave=False)
-        with torch.no_grad():
-            for bi, batch in pbar_valid:
-                data = batch['data'].to(device)
-                meta = batch['meta'].to(device)
-                
-                B, N = data.shape[:2]
-                input = data.clone()  # make a copy as we will modify the input
-                output_logs = data[:, :args.seq_len, 3]
-                for i in range(0, N-args.seq_len):
-                    input_i = input[:, i:i+args.seq_len]
-                    target = data[:, i+args.seq_len, 3].view(-1, 1)
-                    if i > 0:  # substitute DV of the last time step with the predicted value
-                        input_i[:, -1, 3] = output.squeeze()
-                    output = model(input_i, meta)
-                    loss = criterion(output, target)
-                    valid_loss += loss.item() / (N - args.seq_len)
-                    output_logs = torch.cat([output_logs, output], dim=1)
-                
-                # visualize
-                if args.plot_every > 0 and bi == 0:
-                    if epoch == 0 or (epoch+1) % args.plot_every == 0:
-                        # plot the first 16 patients
-                        fig, ax = plt.subplots(4,4, figsize=(20,16))
-                        for i in range(16):
-                            loss_i = criterion(data[i, :, 3], output_logs[i]).item()
-                            ax[i//4, i%4].plot(data[i, :, 3].cpu().numpy(), label='Label')
-                            ax[i//4, i%4].plot(output_logs[i].cpu().numpy(), linestyle='--',label='Prediction')
-                            ax[i//4, i%4].set_title(f'ID:{batch["ptid"][i]}, MSE:{loss_i:.5f}')
-                            ax[i//4, i%4].legend(['Label', 'Prediction'])
-                        fig.savefig(args.save_dir / f'val_epoch{epoch}.png', bbox_inches='tight', dpi=300)
-                        plt.close()
-                
-                # update progress bar
-                pbar_valid.set_description(f"Valid Loss:{valid_loss/(bi+1):.5f}")
+        if epoch == 0 or (epoch+1) % args.validate_every == 0:
+            model.eval()
+            valid_loss = 0.0
+            pbar_valid = tqdm(enumerate(valid_loader), position=1, leave=False)
+            with torch.no_grad():
+                for bi, batch in pbar_valid:
+                    data = batch['data'].to(device)
+                    meta = batch['meta'].to(device)
+                    
+                    B, N = data.shape[:2]
+                    input = data.clone()  # make a copy as we will modify the input
+                    output_logs = data[:, :args.seq_len, 3]
+                    for i in range(0, N-args.seq_len):
+                        input_i = input[:, i:i+args.seq_len]
+                        target = data[:, i+args.seq_len, 3].view(-1, 1)
+                        if i > 0:  # substitute DV of the last time step with the predicted value
+                            input_i[:, -1, 3] = output.squeeze()
+                        output = model(input_i, meta)
+                        loss = criterion(output, target)
+                        valid_loss += loss.item() / (N - args.seq_len)
+                        output_logs = torch.cat([output_logs, output], dim=1)
+                    
+                    # visualize
+                    if args.plot_every > 0 and bi == 0:
+                        if epoch == 0 or (epoch+1) % args.plot_every == 0:
+                            # plot the first 16 patients
+                            fig, ax = plt.subplots(4,4, figsize=(20,16))
+                            for i in range(16):
+                                loss_i = criterion(data[i, :, 3], output_logs[i]).item()
+                                ax[i//4, i%4].plot(data[i, :, 3].cpu().numpy(), label='Label')
+                                ax[i//4, i%4].plot(output_logs[i].cpu().numpy(), linestyle='--',label='Prediction')
+                                ax[i//4, i%4].set_title(f'ID:{batch["ptid"][i]}, MSE:{loss_i:.5f}')
+                                ax[i//4, i%4].legend(['Label', 'Prediction'])
+                            fig.savefig(args.save_dir / f'val_epoch{epoch}.png', bbox_inches='tight', dpi=300)
+                            plt.close()
+                    
+                    # update progress bar
+                    pbar_valid.set_description(f"Valid Loss:{valid_loss/(bi+1):.5f}")
 
-            valid_loss /= len(valid_loader)
-            writer.add_scalar('loss/valid', valid_loss, epoch)
+                valid_loss /= len(valid_loader)
+                writer.add_scalar('loss/valid', valid_loss, epoch)
 
-        tqdm.write(f"Epoch {epoch}: train_loss={train_loss:.5f}, valid_loss={valid_loss:.5f}")
+        pbar_epoch.set_description(f"Epoch {epoch}: train_loss={train_loss:.5f}, valid_loss={valid_loss:.5f}")
         
         # log learning rate
         writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)
@@ -193,12 +195,17 @@ if __name__ == "__main__":
     args.add_argument('--num_workers', type=int, default=16, help='number of workers for dataloader')
     
     # logging arguments
-    args.add_argument('--plot_every', type=int, default=100, help='Plot every N epochs; Do not save when -1')
+    args.add_argument('--validate_every', type=int, default=10, help='Validate every N epochs')
+    args.add_argument('--plot_every', type=int, default=100, help='Plot every N epochs')
     args.add_argument('--ckpt_every', type=int, default=-1, help='Save checkpoints every N epochs; Do not save when -1')
     
     # miscellaneous arguments: no need to change!
     args.add_argument('--seed', type=int, default=2025)
     args = args.parse_args()
+
+    # check validity
+    assert args.plot_every % args.validate_every == 0, "args.plot_every must a multiple of args.validate_every!"
+
 
     # parse configs
     with open(args.yaml_path, 'r') as fp:
