@@ -152,7 +152,7 @@ class NeuralODE(nn.Module):
             times_b = times[b]
             doses_b = doses[b]
             ode_func_b = partial(self.ode_func, dose_time=times_b, dose_amt=doses_b)
-            solves_b = odeint(ode_func_b, z0_b, times_b, rtol=self.tol, atol=self.tol)
+            solves_b = odeint(ode_func_b, z0_b, times_b, rtol=self.tol, atol=self.tol, options={"jump_t": times_b[doses_b > 0]})
             solves[b] = solves_b
 
         # simply use the solution of the last timestep as input
