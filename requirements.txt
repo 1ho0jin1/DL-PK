@@ -4,6 +4,7 @@ scikit-learn
 scipy
 tensorboard
 torch
+torchode
 torchdiffeq
 torch-summary
 tqdm
