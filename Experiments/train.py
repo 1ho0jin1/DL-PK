@@ -95,7 +95,7 @@ def main(args):
                 target = data[:, i+args.seq_len, 3].view(-1, 1)
                 
                 if i > 0 and np.random.random() < supervision_ratio:  # substitute DV of the last time step with the predicted value
-                    input_i[:, -1, 3] = output.squeeze()
+                    input_i[:, -1, 3] = output.clone().detach().squeeze()
                 else:
                     input_i[:, -1, 3] = data[:, i+args.seq_len, 3]    # simply use the ground truth value for supervision
                 output = model(input_i, meta)
@@ -109,7 +109,7 @@ def main(args):
         writer.add_scalar('loss/train', train_loss, epoch)
 
         # validation
-        if epoch == 0 or (epoch+1) % args.validate_every == 0:
+        if args.validate_every > 0 and (epoch == 0 or (epoch+1) % args.validate_every == 0):
             model.eval()
             valid_loss = 0.0
             pbar_valid = tqdm(enumerate(valid_loader), position=1, leave=False)
@@ -150,8 +150,10 @@ def main(args):
 
                 valid_loss /= len(valid_loader)
                 writer.add_scalar('loss/valid', valid_loss, epoch)
-
-        pbar_epoch.set_description(f"Epoch {epoch}: train_loss={train_loss:.5f}, valid_loss={valid_loss:.5f}")
+        if args.validate_every == -1:
+            pbar_epoch.set_description(f"Epoch {epoch}: train_loss={train_loss:.5f}")
+        else:
+            pbar_epoch.set_description(f"Epoch {epoch}: train_loss={train_loss:.5f}, valid_loss={valid_loss:.5f}")
         
         # log learning rate
         writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)
@@ -160,7 +162,7 @@ def main(args):
         scheduler.step()
 
         # save model if validation loss is minimum
-        if epoch == 0 or valid_loss < min_loss:
+        if args.validate_every > 0 and (epoch == 0 or valid_loss < min_loss):
             min_loss = valid_loss
             torch.save({
                 "configs": vars(args),
@@ -174,6 +176,13 @@ def main(args):
                 "model": model.state_dict(),
                 "optimizer": optimizer.state_dict(),
                 }, os.path.join(args.save_dir, f'epoch{epoch+1}.pt'))
+        # save first epoch
+        if epoch == 0:
+            torch.save({
+                "configs": vars(args),
+                "model": model.state_dict(),
+                "optimizer": optimizer.state_dict(),
+                }, os.path.join(args.save_dir, 'init.pt'))
         # save last epoch
         if epoch == args.epochs - 1:
             torch.save({
@@ -188,23 +197,26 @@ if __name__ == "__main__":
     args = argparse.ArgumentParser()
     # directory arguments
     args.add_argument('--data_dir', type=str, default='/home/hj/DL-PK/Experiments/dataset', help='dataset directory where ./train ./valid exists')
-    args.add_argument('--yaml_path', type=str, default='/home/hj/DL-PK/Experiments/configs/node_250126.yaml', help='path of config.yaml')
+    args.add_argument('--yaml_path', type=str, default='', help='path of config.yaml')
     args.add_argument('--ckpt_path', type=str, default='', help='pretrained checkpoint path')
     args.add_argument('--run_name', type=str, default='testrun', help='name of this run')
     args.add_argument('--device', type=int, default=0, help='cuda index. ignored if cuda device is unavailable')
     args.add_argument('--num_workers', type=int, default=16, help='number of workers for dataloader')
     
     # logging arguments
-    args.add_argument('--validate_every', type=int, default=10, help='Validate every N epochs')
-    args.add_argument('--plot_every', type=int, default=100, help='Plot every N epochs')
-    args.add_argument('--ckpt_every', type=int, default=-1, help='Save checkpoints every N epochs; Do not save when -1')
+    args.add_argument('--validate_every', type=int, default=10, help='Validate every N epochs; Do not validate when -1')
+    args.add_argument('--plot_every', type=int, default=50, help='Plot every N epochs; Do not plot when -1')
+    args.add_argument('--ckpt_every', type=int, default=10, help='Save checkpoints every N epochs; Do not save when -1')
     
     # miscellaneous arguments: no need to change!
     args.add_argument('--seed', type=int, default=2025)
     args = args.parse_args()
 
-    # check validity
-    assert args.plot_every % args.validate_every == 0, "args.plot_every must a multiple of args.validate_every!"
+    # check validity of logging arguments
+    if args.validate_every == -1:
+        args.plot_every = -1
+    else:
+        assert args.plot_every % args.validate_every == 0, "args.plot_every must a multiple of args.validate_every!"
 
 
     # parse configs
