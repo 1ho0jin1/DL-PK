@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
-from torchdiffeq import odeint
-from functools import partial
+import torchode as to
 
 
 
@@ -31,22 +30,15 @@ class ODEFunc(nn.Module):
                 nn.init.normal_(m.weight, mean=0, std=0.001)
                 nn.init.constant_(m.bias, val=0.5)
 
-    def forward(self, t, x, dose_time, dose_amt):
+    def forward(self, t, x):
         """
         Args:
             t (torch.Tensor): Time for current step
             x (torch.Tensor): Input tensor of shape (batch_size, input_dim).
-            dose_time (torch.Tensor): Time of dose administration of shape (N,)
-            dose_amt (torch.Tensor): Amount of dose administered of shape (N,)
         Returns:
             torch.Tensor: Derivative of x with respect to t.
         """
         dxdt = self.net(x)
-
-        # add dose effect
-        mask = dose_time.le(t)
-        dose_accum = (dose_amt * mask).sum()  # accumulated dose until the current time step
-        dxdt = dxdt + dose_accum
         return dxdt
 
 
@@ -103,7 +95,7 @@ class NeuralODE(nn.Module):
         hidden_dim (int): Number of hidden units in the encoder and ODE function.
         output_dim (int): Number of output features.
     """
-    def __init__(self, input_dim, meta_dim, hidden_dim, output_dim=1, tol=1e-3):
+    def __init__(self, input_dim, meta_dim, hidden_dim, output_dim=1, atol=1e-6, rtol=1e-3):
         super().__init__()
         self.input_dim = input_dim
         self.meta_dim = meta_dim
@@ -116,7 +108,15 @@ class NeuralODE(nn.Module):
         self.fc = nn.Linear(hidden_dim + meta_dim, output_dim)
 
         # tolerance for the ODE solver
-        self.tol = tol
+        self.atol = atol
+        self.rtol = rtol
+        
+        # Initialize jit solver for torchode
+        self.term = to.ODETerm(self.ode_func)
+        self.step_method = to.Dopri5(term=self.term)
+        self.step_size_controller = to.IntegralController(atol=atol, rtol=rtol, term=self.term)
+        self.solver = to.AutoDiffAdjoint(self.step_method, self.step_size_controller)
+        self.jit_solver = torch.compile(self.solver)
     
     def sample_standard_gaussian(self, mean, std, device):
         d = torch.distributions.normal.Normal(
@@ -142,21 +142,13 @@ class NeuralODE(nn.Module):
         qz0_mean, qz0_var = self.encoder(x, meta)
 
         # 2) Sample initial latent z0
-        z0 = self.sample_standard_gaussian(qz0_mean, qz0_var, device)
+        y0 = self.sample_standard_gaussian(qz0_mean, qz0_var, device)
 
         # 3) Solve ODE for each time step
-        # NOTE: each sample may have different timestamps, so we loop over the batch dimension
-        solves = torch.zeros((B,N,self.hidden_dim), device=x.device)
-        for b in range(B):
-            z0_b = z0[b]
-            times_b = times[b]
-            doses_b = doses[b]
-            ode_func_b = partial(self.ode_func, dose_time=times_b, dose_amt=doses_b)
-            solves_b = odeint(ode_func_b, z0_b, times_b, rtol=self.tol, atol=self.tol, options={"jump_t": times_b[doses_b > 0]})
-            solves[b] = solves_b
+        sol = self.jit_solver.solve(to.InitialValueProblem(y0=y0, t_eval=times))
 
         # simply use the solution of the last timestep as input
-        latent = torch.cat((solves[:,-1,:], meta), dim=-1)
+        latent = torch.cat((sol.ys[:,-1,:], meta), dim=-1)
         pred = self.fc(latent)
         return pred
 
