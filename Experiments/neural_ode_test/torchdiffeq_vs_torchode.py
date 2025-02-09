@@ -170,14 +170,33 @@ class NeuralODE(nn.Module):
         qz0_mean, qz0_var = self.encoder(x, meta)
 
         # 2) Sample initial latent z0
-        y0 = self.sample_standard_gaussian(qz0_mean, qz0_var, device)
+        z0 = self.sample_standard_gaussian(qz0_mean, qz0_var, device)
         
+        t0 = time.time()
+        sol = self.jit_solver.solve(to.InitialValueProblem(y0=z0, t_eval=times))
+        print("torchode: ".ljust(14), f"{time.time() - t0:.4f} seconds")
+
         # 3) Solve ODE for each time step
-        sol = self.jit_solver.solve(to.InitialValueProblem(y0=y0, t_eval=times))
+        # NOTE: each sample may have different timestamps, so we loop over the batch dimension
         
+        t0 = time.time()
+        solves = torch.zeros((B,N,self.hidden_dim), device=x.device)
+        for b in range(B):
+            z0_b = z0[b]
+            times_b = times[b]
+            doses_b = doses[b]
+            solves_b = odeint(self.ode_func, z0_b, times_b, rtol=self.rtol, atol=self.atol)
+            solves[b] = solves_b
+        print("torchdiffeq: ".ljust(14), f"{time.time() - t0:.4f} seconds")
+
+        diff = (solves - sol.ys).abs()
+        print("Absolute difference:")
+        print(f"\tmin:  {diff.min().item():.6f}")
+        print(f"\tmax:  {diff.max().item():.6f}")
+        print(f"\tmean: {diff.mean().item():.6f}")
 
         # simply use the solution of the last timestep as input
-        latent = torch.cat((sol.ys[:,-1,:], meta), dim=-1)
+        latent = torch.cat((solves[:,-1,:], meta), dim=-1)
         pred = self.fc(latent)
         return pred
 
