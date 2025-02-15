@@ -205,8 +205,8 @@ if __name__ == "__main__":
     
     # logging arguments
     args.add_argument('--validate_every', type=int, default=10, help='Validate every N epochs; Do not validate when -1')
-    args.add_argument('--plot_every', type=int, default=50, help='Plot every N epochs; Do not plot when -1')
-    args.add_argument('--ckpt_every', type=int, default=10, help='Save checkpoints every N epochs; Do not save when -1')
+    args.add_argument('--plot_every', type=int, default=100, help='Plot every N epochs; Do not plot when -1')
+    args.add_argument('--ckpt_every', type=int, default=100, help='Save checkpoints every N epochs; Do not save when -1')
     
     # miscellaneous arguments: no need to change!
     args.add_argument('--seed', type=int, default=2025)
