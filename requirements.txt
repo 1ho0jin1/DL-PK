@@ -4,7 +4,7 @@ scikit-learn
 scipy
 tensorboard
 torch
-torchode
+torchode @ git+https://github.com/martenlienen/torchode.git
 torchdiffeq
 torch-summary
 tqdm
