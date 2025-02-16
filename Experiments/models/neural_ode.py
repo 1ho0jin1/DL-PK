@@ -24,11 +24,11 @@ class ODEFunc(nn.Module):
             nn.Linear(hidden_dim, input_dim)
         )
         
-        # Initialize weights
-        for m in self.net.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.normal_(m.weight, mean=0, std=0.001)
-                nn.init.constant_(m.bias, val=0.5)
+        # # Initialize weights
+        # for m in self.net.modules():
+        #     if isinstance(m, nn.Linear):
+        #         nn.init.normal_(m.weight, mean=0, std=0.001)
+        #         nn.init.constant_(m.bias, val=0.0)
 
     def forward(self, t, x):
         """
@@ -50,11 +50,9 @@ class Encoder(nn.Module):
         meta_dim (int): Number of meta features to concatenate.
         hidden_dim (int): Number of hidden units in the GRU.
         hidden_dim (int): Dimension of the latent space.
-        device (torch.device): Device for computation (default: CPU).
     """
-    def __init__(self, input_dim, meta_dim, hidden_dim, device=torch.device("cpu")):
+    def __init__(self, input_dim, meta_dim, hidden_dim):
         super().__init__()
-        self.device = device
         self.input_dim = input_dim
         self.meta_dim = meta_dim
         self.hidden_dim = hidden_dim
@@ -103,7 +101,7 @@ class NeuralODE(nn.Module):
         self.output_dim = output_dim
         
         # Initialize the encoder, ODE function, and FC layer
-        self.encoder = Encoder(input_dim, meta_dim, hidden_dim, hidden_dim)
+        self.encoder = Encoder(input_dim, meta_dim, hidden_dim)
         self.ode_func = ODEFunc(hidden_dim, hidden_dim)
         self.fc = nn.Linear(hidden_dim + meta_dim, output_dim)
 
@@ -117,6 +115,22 @@ class NeuralODE(nn.Module):
         self.step_size_controller = to.IntegralController(atol=atol, rtol=rtol, term=self.term)
         self.solver = to.AutoDiffAdjoint(self.step_method, self.step_size_controller)
         self.jit_solver = torch.compile(self.solver)
+
+        # Register gradient logging hooks for all parameters
+        self.register_gradient_hooks()
+
+    def register_gradient_hooks(self):
+        # Helper to create a hook that logs the gradient norm.
+        def get_hook(name):
+            def hook(grad):
+                # You can replace print with logging to a file if needed.
+                print(f"Gradient norm for {name}: {grad.norm().item():.6f}")
+                return grad
+            return hook
+
+        for name, param in self.named_parameters():
+            if param.requires_grad:
+                param.register_hook(get_hook(name))
     
     def sample_standard_gaussian(self, mean, std, device):
         d = torch.distributions.normal.Normal(
@@ -142,9 +156,6 @@ class NeuralODE(nn.Module):
                 n_intervals is max(num_dosing_events) + 1 across the batch.
             doses_split: torch.Tensor of shape (n_intervals, batch_size),
                 where each entry corresponds to the dose amount for the current interval.
-                For the first interval (before any dosing event) the dose is 0.
-                For padded intervals (added when a sample has fewer dosing events),
-                the dose is set to 0.
         """
         B, N = times.shape
         device = times.device
@@ -207,7 +218,7 @@ class NeuralODE(nn.Module):
         device = x.device
         times = x[:, :, 0]
         doses = x[:, :, 2]
-        
+
         # 1) Encode input into mean/log_var for the initial latent distribution
         qz0_mean, qz0_var = self.encoder(x, meta)
 
@@ -219,12 +230,30 @@ class NeuralODE(nn.Module):
         
         # 4) Solve ODE for each split interval
         for t_split, d_split in zip(times_split, doses_split):
-            y0 += d_split.unsqueeze(-1)
-            sol = self.jit_solver.solve(to.InitialValueProblem(y0=y0, t_start=t_split[:,0], t_end=t_split[:,1]))
-            y0 = sol.ys[:,-1,:]
+            # Create a boolean mask of active samples (those with t_start < t_end)
+            active_mask = t_split[:, 0] < t_split[:, 1]
+
+            # For active samples, add the dose if needed.
+            if active_mask.any():
+                # Optionally add the dose (if you want a differentiable or non-differentiable update)
+                # Here we add it only for active samples:
+                y0_active = y0[active_mask] + d_split[active_mask].unsqueeze(-1)
+                
+                # Call the solver only for the active samples:
+                sol = self.jit_solver.solve(
+                    to.InitialValueProblem(
+                        y0=y0_active,
+                        t_start=t_split[active_mask, 0],
+                        t_end=t_split[active_mask, 1]
+                    )
+                )
+                
+                # Update only the active samples in y0 with the final state from the ODE solve.
+                y0_active_new = sol.ys[:, -1, :]
+                y0[active_mask] = y0_active_new
 
         # simply use the solution of the last timestep as input
-        latent = torch.cat((sol.ys[:,-1,:], meta), dim=-1)
+        latent = torch.cat((y0, meta), dim=-1)
         pred = self.fc(latent)
         return pred
 

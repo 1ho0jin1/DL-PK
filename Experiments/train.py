@@ -81,7 +81,7 @@ def main(args):
 
         pbar_train = tqdm(enumerate(train_loader), position=1, leave=False)
         for bi, batch in pbar_train:
-            optimizer.zero_grad()
+            # optimizer.zero_grad()
             data = batch['data'].to(device)
             meta = batch['meta'].to(device)      # TODO: use metadata somehow
             input = data[:, :-1]                 # input: all time steps except the last one
@@ -91,6 +91,8 @@ def main(args):
             input = data.clone()  # make a copy as we will modify the input
             loss = 0.0
             for i in range(args.pred_steps):
+                optimizer.zero_grad()
+
                 input_i = input[:, i:i+args.seq_len]
                 target = data[:, i+args.seq_len, 3].view(-1, 1)
                 
@@ -197,7 +199,7 @@ if __name__ == "__main__":
     args = argparse.ArgumentParser()
     # directory arguments
     args.add_argument('--data_dir', type=str, default='/home/hj/DL-PK/Experiments/dataset', help='dataset directory where ./train ./valid exists')
-    args.add_argument('--yaml_path', type=str, default='', help='path of config.yaml')
+    args.add_argument('--yaml_path', type=str, default='/home/hj/DL-PK/Experiments/configs/node_test.yaml', help='path of config.yaml')
     args.add_argument('--ckpt_path', type=str, default='', help='pretrained checkpoint path')
     args.add_argument('--run_name', type=str, default='testrun', help='name of this run')
     args.add_argument('--device', type=int, default=0, help='cuda index. ignored if cuda device is unavailable')

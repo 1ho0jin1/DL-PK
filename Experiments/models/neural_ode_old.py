@@ -117,6 +117,21 @@ class NeuralODE(nn.Module):
         self.step_size_controller = to.IntegralController(atol=atol, rtol=rtol, term=self.term)
         self.solver = to.AutoDiffAdjoint(self.step_method, self.step_size_controller)
         self.jit_solver = torch.compile(self.solver)
+        # Register gradient logging hooks for all parameters
+        self.register_gradient_hooks()
+
+    def register_gradient_hooks(self):
+        # Helper to create a hook that logs the gradient norm.
+        def get_hook(name):
+            def hook(grad):
+                # You can replace print with logging to a file if needed.
+                print(f"Gradient norm for {name}: {grad.norm().item():.6f}")
+                return grad
+            return hook
+
+        for name, param in self.named_parameters():
+            if param.requires_grad:
+                param.register_hook(get_hook(name))
     
     def sample_standard_gaussian(self, mean, std, device):
         d = torch.distributions.normal.Normal(
@@ -145,7 +160,8 @@ class NeuralODE(nn.Module):
         y0 = self.sample_standard_gaussian(qz0_mean, qz0_var, device)
 
         # 3) Solve ODE for each time step
-        sol = self.jit_solver.solve(to.InitialValueProblem(y0=y0, t_eval=times))
+        # sol = self.jit_solver.solve(to.InitialValueProblem(y0=y0, t_eval=times))
+        sol = self.jit_solver.solve(to.InitialValueProblem(y0=y0, t_start=times[:,0], t_end=times[:,-1]))
 
         # simply use the solution of the last timestep as input
         latent = torch.cat((sol.ys[:,-1,:], meta), dim=-1)
