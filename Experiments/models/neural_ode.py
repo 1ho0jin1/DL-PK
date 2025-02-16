@@ -24,11 +24,11 @@ class ODEFunc(nn.Module):
             nn.Linear(hidden_dim, input_dim)
         )
         
-        # # Initialize weights
-        # for m in self.net.modules():
-        #     if isinstance(m, nn.Linear):
-        #         nn.init.normal_(m.weight, mean=0, std=0.001)
-        #         nn.init.constant_(m.bias, val=0.0)
+        # Initialize weights
+        for m in self.net.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, mean=0, std=0.001)
+                nn.init.constant_(m.bias, val=0.5)
 
     def forward(self, t, x):
         """
@@ -93,7 +93,7 @@ class NeuralODE(nn.Module):
         hidden_dim (int): Number of hidden units in the encoder and ODE function.
         output_dim (int): Number of output features.
     """
-    def __init__(self, input_dim, meta_dim, hidden_dim, output_dim=1, atol=1e-6, rtol=1e-3):
+    def __init__(self, input_dim, meta_dim, hidden_dim, output_dim=1, atol=1e-6, rtol=1e-3, debug=False):
         super().__init__()
         self.input_dim = input_dim
         self.meta_dim = meta_dim
@@ -116,8 +116,9 @@ class NeuralODE(nn.Module):
         self.solver = to.AutoDiffAdjoint(self.step_method, self.step_size_controller)
         self.jit_solver = torch.compile(self.solver)
 
-        # Register gradient logging hooks for all parameters
-        self.register_gradient_hooks()
+        # Debugging: Register gradient logging hooks for all parameters
+        if debug:
+            self.register_gradient_hooks()
 
     def register_gradient_hooks(self):
         # Helper to create a hook that logs the gradient norm.
@@ -127,7 +128,6 @@ class NeuralODE(nn.Module):
                 print(f"Gradient norm for {name}: {grad.norm().item():.6f}")
                 return grad
             return hook
-
         for name, param in self.named_parameters():
             if param.requires_grad:
                 param.register_hook(get_hook(name))
