@@ -1,5 +1,6 @@
 import os
 import yaml
+import logging
 import argparse
 import matplotlib
 matplotlib.use("Agg")  # use Agg backend for efficiency
@@ -58,6 +59,7 @@ def main(args):
     if args.ckpt_path:
         ckpt = torch.load(args.ckpt_path)
         model.load_state_dict(ckpt['model'])
+        logging.log(f"Loaded model weights from {args.ckpt_path}")
 
     # define loss function, optimizer, scheduler
     if hasattr(args, "l1loss") and args.l1loss:
@@ -230,6 +232,9 @@ if __name__ == "__main__":
     # set & create save directory
     args.save_dir = base / 'runs/train' / args.run_name
     os.makedirs(args.save_dir, exist_ok=True)
-    print("Save directory:", args.save_dir)
 
+    # log arguments
+    logging.log(vars(args))
+
+    # train
     main(args)
