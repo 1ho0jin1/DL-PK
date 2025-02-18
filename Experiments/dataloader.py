@@ -71,7 +71,7 @@ class ConsecutiveSampling(object):
     """
     Samples a consecutive sequence of length `seq_len` from the data.
     """
-    def __init__(self, seq_len=240):
+    def __init__(self, seq_len=24):
         self.seq_len = seq_len
     def __call__(self, sample):
         num_rows = sample['data'].shape[0]
@@ -84,23 +84,67 @@ class ConsecutiveSampling(object):
 class PKPreprocess(object):
     """
     sample['data']: (N,4) array, each row is ["TIME", "TAD", "AMT", "DV"]
-    TIME: use difference between consecutive time points instead of absolute value
+    sample['meta']: (4,) array, each row is ["SEX", "AGE", "WT", "Cr"]
+    AMT : re-scale by scale_amt set to 1000 (mg)
     DV  : re-scale by scale_dv set to 100 (mg/L)
     AGE : re-scale by scale_age set to 100 (yrs)
     WT  : re-scale by scale_wt set to 100 (kg)
     """
-    def __init__(self, scale_dv=100, scale_age=100, scale_wt=100):
+    def __init__(self, scale_amt=1000, scale_dv=100, scale_age=100, scale_wt=100):
+        self.scale_amt = scale_amt
         self.scale_dv = scale_dv
         self.scale_age = scale_age
         self.scale_wt = scale_wt
     def __call__(self, sample):
-        # # use difference between consecutive time points
-        # sample['data'][1:,0] = torch.diff(sample['data'][:,0])
-        # sample['data'][0, 0] = 0.0
-        # rescale DV, AGE, WT
+        # rescale AMT, DV, AGE, WT
+        sample['data'][:,2] = sample['data'][:,2] / self.scale_amt
         sample['data'][:,3] = sample['data'][:,3] / self.scale_dv
         sample['meta'][1] = sample['meta'][1] / self.scale_age
         sample['meta'][2] = sample['meta'][2] / self.scale_wt
+        return sample
+
+
+
+class RandomScaling(object):
+    """
+    Randomly scale both DV and AMT values by a factor between a given range, (0.8, 1.2) for default.
+    NOTE: DV-AMT relationship may not be linear, but we assume linearity for small enough perturbations.
+    """
+    def __init__(self, p=0.2, scale_range=(0.8, 1.2)):
+        self.p = p
+        self.scale_range = scale_range
+    def __call__(self, sample):
+        if np.random.rand() < self.p:
+            scale_factor = np.random.uniform(*self.scale_range)
+            sample['data'][:, 2:4] *= scale_factor  # scale AMT and DV
+        return sample
+
+
+
+class DVJitter(object):
+    """
+    Add random noise to DV values to simulate measurement error.
+    """
+    def __init__(self, std=0.05):
+        self.std = std
+    def __call__(self, sample):
+        nonzero_idx = sample['data'][:, 3] > 0
+        sample['data'][nonzero_idx, 3] += np.random.normal(0, self.std, sample['data'].shape[0])
+        return sample
+
+
+
+class RandomNullSampling(object):
+    """
+    Randomly add a 'null sample' where all AMT and DV values are set to zero.
+    This regularizes the model to learn meaningful PK dynamics (i.e., no DV if no AMT),
+    instead of just predicting some periodic pattern regardless of the input.
+    """
+    def __init__(self, p=0.1):
+        self.p = p
+    def __call__(self, sample):
+        if np.random.rand() < self.p:
+            sample['data'][:, 2:4] = 0.0  # set AMT and DV to zero
         return sample
 
 
