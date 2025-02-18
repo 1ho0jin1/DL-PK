@@ -12,7 +12,7 @@ def main(args):
     # set random seed
     set_random_seed()
 
-    base = Path(__file__).parent / 'dataset'
+    base = Path(__file__).parent / f'dataset{args.postfix}'
     source = Path(args.source_dir)
 
     id_list = os.listdir(source)
@@ -36,6 +36,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--source_dir', type=str, default='dataset')
+    parser.add_argument('--postfix', type=str)
     parser.add_argument('--seed', type=int, default=2025)
     args = parser.parse_args()
     main(args)
