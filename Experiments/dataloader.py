@@ -124,12 +124,13 @@ class RandomScaling(object):
 class DVJitter(object):
     """
     Add random noise to DV values to simulate measurement error.
+    Noise is assumed to be at most 10% of the DV value (i.e., multiplicative noise).
     """
-    def __init__(self, std=0.05):
-        self.std = std
+    def __init__(self, noise_ratio=0.1):
+        self.noise_ratio = noise_ratio
     def __call__(self, sample):
-        nonzero_idx = sample['data'][:, 3] > 0
-        sample['data'][nonzero_idx, 3] += np.random.normal(0, self.std, sample['data'].shape[0])
+        noise = (torch.rand_like(sample['data'][:,3]) - 0.5) * 2 * self.noise_ratio
+        sample['data'][:,3] *= (1 + noise)  # add multiplicative noise to DV
         return sample
 
 
@@ -156,11 +157,14 @@ if __name__ == "__main__":
     
     transform = transforms.Compose([
         ConsecutiveSampling(seq_len=24),
-        Normalize()
+        Normalize(),
+        RandomScaling(p=0.2, scale_range=(0.8, 1.2)),
+        DVJitter(),
+        RandomNullSampling(p=1.0),
     ])
     
     dataset = PKDataset(path, transform=transform)
-    dataloader = DataLoader(dataset, batch_size=4, shuffle=True)
+    dataloader = DataLoader(dataset, batch_size=17, shuffle=True)
     
     # get one sample
     data = next(iter(dataloader))
