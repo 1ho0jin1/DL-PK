@@ -36,7 +36,7 @@ def main(args):
     # load data and create dataloaders
     train_trfm = transforms.Compose([
         ConsecutiveSampling(args.seq_len+args.pred_steps),
-        PKPreprocess(),
+        Normalize(),
     ])
     train_data = PKDataset(os.path.join(args.data_dir, 'train'), transform=train_trfm)
     valid_data = PKDataset(os.path.join(args.data_dir, 'valid'), transform=PKPreprocess())

@@ -44,7 +44,7 @@ def main(args):
             setattr(args, key, value)
 
     # load data and create dataloaders
-    dataset = PKDataset(args.source_dir, transform=PKPreprocess())
+    dataset = PKDataset(args.source_dir, transform=Normalize())
     dataloader = DataLoader(dataset, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=False)
 
     # create model

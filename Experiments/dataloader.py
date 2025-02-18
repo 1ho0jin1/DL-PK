@@ -81,7 +81,7 @@ class ConsecutiveSampling(object):
 
 
 
-class PKPreprocess(object):
+class Normalize(object):
     """
     sample['data']: (N,4) array, each row is ["TIME", "TAD", "AMT", "DV"]
     sample['meta']: (4,) array, each row is ["SEX", "AGE", "WT", "Cr"]
@@ -155,8 +155,8 @@ if __name__ == "__main__":
     path = base / 'dataset/valid'
     
     transform = transforms.Compose([
-        ConsecutiveSampling(seq_len=240),
-        PKPreprocess(scale_dv=200.0)
+        ConsecutiveSampling(seq_len=24),
+        Normalize()
     ])
     
     dataset = PKDataset(path, transform=transform)
