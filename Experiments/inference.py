@@ -52,6 +52,8 @@ def main(args):
         model = LSTMPK(hidden_dim=args.hidden_dim, num_layers=args.num_layers).to(device)
     elif args.model == 'gru':
         model = GRUPK(input_dim=args.input_dim, meta_dim=args.meta_dim, hidden_dim=args.hidden_dim, num_layers=args.num_layers).to(device)
+    elif args.model == 'node':
+        model = NeuralODE(input_dim=args.input_dim, meta_dim=args.meta_dim, hidden_dim=args.hidden_dim).to(device)
     # elif args.model == 'transformer':
     #     model = TransformerPK().to(device)
     else:
@@ -122,10 +124,10 @@ if __name__ == "__main__":
     args = argparse.ArgumentParser()
     # directory arguments
     args.add_argument('--source_dir', type=str, default='/home/hj/DL-PK/Experiments/dataset/test')
-    args.add_argument('--ckpt_path', type=str, default='/home/hj/DL-PK/Experiments/runs/train/gru_250125_longrun/best.pt', help='path to .ckpt')
+    args.add_argument('--ckpt_path', type=str, default='', help='path to .ckpt')
     args.add_argument('--run_name', type=str, default='gru_test', help='name of this run')
     args.add_argument('--device', type=int, default=0, help='cuda index. ignored if cuda device is unavailable')
-    args.add_argument('--num_workers', type=int, default=8, help='number of workers for dataloader')
+    args.add_argument('--num_workers', type=int, default=16, help='number of workers for dataloader')
 
     # logging arguments
     args.add_argument('--plot', action='store_true', help='plot first few samples')
