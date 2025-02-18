@@ -1,18 +1,24 @@
 runname=(
-    # gru_250122
-    # gru_250122_curricular
-    gru_250122_curricular_L1
-    gru_250123_curricular
-    gru_250124_2_curricular
-    gru_250124_curricular
-    gru_250124_curricular_longrun
-    # gru_250125_longrun
+    gru_250125_longrun
+    node_250209
+)
+postfix=(
+    0000
+    0202
+    0404
+    1212
+    2222
+    3232
+    3434
+    4444
 )
 
 for name in "${runname[@]}"
 do
-    echo Processing $name
-    python inference.py --source_dir dataset/train --ckpt_path runs/train/$name/best.pt --run_name $name/train --plot &
-    python inference.py --source_dir dataset/test --ckpt_path runs/train/$name/best.pt --run_name $name/test --plot &
-    wait
+    for post in "${postfix[@]}"
+    do
+        echo Processing $name$post
+        python inference.py --source_dir dataset$post/test --ckpt_path runs/train/$name/best.pt --run_name $name/$post/test --plot &
+        wait
+    done
 done
