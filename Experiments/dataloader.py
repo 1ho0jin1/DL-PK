@@ -126,11 +126,13 @@ class DVJitter(object):
     Add random noise to DV values to simulate measurement error.
     Noise is assumed to be at most 10% of the DV value (i.e., multiplicative noise).
     """
-    def __init__(self, noise_ratio=0.1):
+    def __init__(self, p=0.2, noise_ratio=0.1):
+        self.p = p
         self.noise_ratio = noise_ratio
     def __call__(self, sample):
-        noise = (torch.rand_like(sample['data'][:,3]) - 0.5) * 2 * self.noise_ratio
-        sample['data'][:,3] *= (1 + noise)  # add multiplicative noise to DV
+        if np.random.rand() < self.p:
+            noise = (torch.rand_like(sample['data'][:,3]) - 0.5) * 2 * self.noise_ratio
+            sample['data'][:,3] *= (1 + noise)  # add multiplicative noise to DV
         return sample
 
 
@@ -158,8 +160,8 @@ if __name__ == "__main__":
     transform = transforms.Compose([
         ConsecutiveSampling(seq_len=24),
         Normalize(),
+        DVJitter(p=0.2, noise_ratio=0.1),
         RandomScaling(p=0.2, scale_range=(0.8, 1.2)),
-        DVJitter(),
         RandomNullSampling(p=1.0),
     ])
     

@@ -39,6 +39,9 @@ def main(args):
     train_trfm = transforms.Compose([
         ConsecutiveSampling(args.seq_len+args.pred_steps),
         Normalize(),
+        DVJitter(p=args.p_dv_jitter, noise_ratio=0.1),
+        RandomScaling(p=args.p_random_scale, scale_range=(0.8, 1.2)),
+        RandomNullSampling(p=args.p_random_null_sample),
     ])
     train_data = PKDataset(os.path.join(args.data_dir, 'train'), transform=train_trfm)
     valid_data = PKDataset(os.path.join(args.data_dir, 'valid'), transform=Normalize())
