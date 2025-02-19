@@ -67,7 +67,7 @@ if __name__ == "__main__":
     # load data and create dataloaders
     train_trfm = transforms.Compose([
         ConsecutiveSampling(24+24),
-        PKPreprocess(),
+        Normalize(),
     ])
     train_data = PKDataset('/home/hj/DL-PK/Experiments/dataset/train', transform=train_trfm)
     train_loader = DataLoader(train_data, batch_size=7, shuffle=True)

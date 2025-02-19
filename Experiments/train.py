@@ -20,6 +20,8 @@ from models import *
 from dataloader import *
 from utils.general import set_random_seed
 
+# Configure logging (basic setup)
+logging.basicConfig(level=logging.INFO)
 
 #set project base directory
 base = Path(__file__).parent
@@ -39,7 +41,7 @@ def main(args):
         Normalize(),
     ])
     train_data = PKDataset(os.path.join(args.data_dir, 'train'), transform=train_trfm)
-    valid_data = PKDataset(os.path.join(args.data_dir, 'valid'), transform=PKPreprocess())
+    valid_data = PKDataset(os.path.join(args.data_dir, 'valid'), transform=Normalize())
     train_loader = DataLoader(train_data, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True)
     valid_loader = DataLoader(valid_data, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=False)
 
@@ -59,7 +61,7 @@ def main(args):
     if args.ckpt_path:
         ckpt = torch.load(args.ckpt_path)
         model.load_state_dict(ckpt['model'])
-        logging.log(f"Loaded model weights from {args.ckpt_path}")
+        logging.info(f"Loaded model weights from {args.ckpt_path}")
 
     # define loss function, optimizer, scheduler
     if hasattr(args, "l1loss") and args.l1loss:
@@ -122,6 +124,16 @@ def main(args):
                     data = batch['data'].to(device)
                     meta = batch['meta'].to(device)
                     
+                    # visualization flag
+                    plot_flag = bi == 0 and args.plot_every > 0 and (epoch == 0 or (epoch+1) % args.plot_every == 0)
+                    if plot_flag:
+                        # add a null sample as the first sample of the batch
+                        null_sample = data[0].clone()
+                        null_sample[:, 2:4] = 0.0  # set AMT and DV to zero
+                        data = torch.cat([null_sample.unsqueeze(0), data], dim=0)
+                        meta = torch.cat([meta[0].unsqueeze(0), meta], dim=0)  # duplicate metadata for the null sample
+                        batch['ptid'] = ['null'] + batch['ptid']  # add "null" for ptid of the null sample
+                    
                     B, N = data.shape[:2]
                     input = data.clone()  # make a copy as we will modify the input
                     output_logs = data[:, :args.seq_len, 3]
@@ -136,18 +148,17 @@ def main(args):
                         output_logs = torch.cat([output_logs, output], dim=1)
                     
                     # visualize
-                    if args.plot_every > 0 and bi == 0:
-                        if epoch == 0 or (epoch+1) % args.plot_every == 0:
-                            # plot the first 16 patients
-                            fig, ax = plt.subplots(4,4, figsize=(20,16))
-                            for i in range(16):
-                                loss_i = criterion(data[i, :, 3], output_logs[i]).item()
-                                ax[i//4, i%4].plot(data[i, :, 3].cpu().numpy(), label='Label')
-                                ax[i//4, i%4].plot(output_logs[i].cpu().numpy(), linestyle='--',label='Prediction')
-                                ax[i//4, i%4].set_title(f'ID:{batch["ptid"][i]}, MSE:{loss_i:.5f}')
-                                ax[i//4, i%4].legend(['Label', 'Prediction'])
-                            fig.savefig(args.save_dir / f'val_epoch{epoch}.png', bbox_inches='tight', dpi=300)
-                            plt.close()
+                    if plot_flag:
+                        # plot the first 16 patients
+                        fig, ax = plt.subplots(4,4, figsize=(20,16))
+                        for i in range(16):
+                            loss_i = criterion(data[i, :, 3], output_logs[i]).item()
+                            ax[i//4, i%4].plot(data[i, :, 3].cpu().numpy(), label='Label')
+                            ax[i//4, i%4].plot(output_logs[i].cpu().numpy(), linestyle='--',label='Prediction')
+                            ax[i//4, i%4].set_title(f'ID:{batch["ptid"][i]}, MSE:{loss_i:.5f}')
+                            ax[i//4, i%4].legend(['Label', 'Prediction'])
+                        fig.savefig(args.save_dir / f'val_epoch{epoch}.png', bbox_inches='tight', dpi=300)
+                        plt.close()
                     
                     # update progress bar
                     pbar_valid.set_description(f"Valid Loss:{valid_loss/(bi+1):.5f}")
@@ -201,7 +212,7 @@ if __name__ == "__main__":
     args = argparse.ArgumentParser()
     # directory arguments
     args.add_argument('--data_dir', type=str, default='/home/hj/DL-PK/Experiments/dataset', help='dataset directory where ./train ./valid exists')
-    args.add_argument('--yaml_path', type=str, default='/home/hj/DL-PK/Experiments/configs/node_test.yaml', help='path of config.yaml')
+    args.add_argument('--yaml_path', type=str, default='/home/hj/DL-PK/Experiments/configs/node_250209.yaml', help='path of config.yaml')
     args.add_argument('--ckpt_path', type=str, default='', help='pretrained checkpoint path')
     args.add_argument('--run_name', type=str, default='testrun', help='name of this run')
     args.add_argument('--device', type=int, default=0, help='cuda index. ignored if cuda device is unavailable')
@@ -234,7 +245,7 @@ if __name__ == "__main__":
     os.makedirs(args.save_dir, exist_ok=True)
 
     # log arguments
-    logging.log(vars(args))
+    logging.info(vars(args))
 
     # train
     main(args)
