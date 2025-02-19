@@ -12,7 +12,7 @@ lr: 0.0005
 wd: 0.0001
 seq_len: 24
 pred_steps: 24  # number of prediction steps during training
-curriculum: False  # use curriculum learning 
+curriculum: True  # use curriculum learning
 
 # augmentation configs
 p_dv_jitter: 0.2
