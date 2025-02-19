@@ -1,0 +1,20 @@
+# model configs
+model: gru
+input_dim: 4
+meta_dim: 4
+hidden_dim: 256
+num_layers: 4
+
+# train configs
+epochs: 4000
+batch_size: 1024
+lr: 0.0005
+wd: 0.0001
+seq_len: 24
+pred_steps: 24  # number of prediction steps during training
+curriculum: False  # use curriculum learning 
+
+# augmentation configs
+p_dv_jitter: 0.0
+p_random_scale: 0.0
+p_random_null_sampling: 0.0
