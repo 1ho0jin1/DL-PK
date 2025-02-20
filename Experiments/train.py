@@ -186,6 +186,7 @@ def main(args):
                 "configs": vars(args),
                 "model": model.state_dict(),
                 "optimizer": optimizer.state_dict(),
+                "epoch": epoch,
                 }, os.path.join(args.save_dir, 'best.pt'))
         # save model if checkpoint_every is set
         if args.ckpt_every > 0 and (epoch + 1) % args.ckpt_every == 0:
@@ -193,6 +194,7 @@ def main(args):
                 "configs": vars(args),
                 "model": model.state_dict(),
                 "optimizer": optimizer.state_dict(),
+                "epoch": epoch,
                 }, os.path.join(args.save_dir, f'epoch{epoch+1}.pt'))
         # save first epoch
         if epoch == 0:
@@ -200,6 +202,7 @@ def main(args):
                 "configs": vars(args),
                 "model": model.state_dict(),
                 "optimizer": optimizer.state_dict(),
+                "epoch": epoch,
                 }, os.path.join(args.save_dir, 'init.pt'))
         # save last epoch
         if epoch == args.epochs - 1:
@@ -207,6 +210,7 @@ def main(args):
                 "configs": vars(args),
                 "model": model.state_dict(),
                 "optimizer": optimizer.state_dict(),
+                "epoch": epoch,
                 }, os.path.join(args.save_dir, 'last.pt'))
 
 
@@ -223,8 +227,8 @@ if __name__ == "__main__":
     
     # logging arguments
     args.add_argument('--validate_every', type=int, default=10, help='Validate every N epochs; Do not validate when -1')
-    args.add_argument('--plot_every', type=int, default=100, help='Plot every N epochs; Do not plot when -1')
-    args.add_argument('--ckpt_every', type=int, default=100, help='Save checkpoints every N epochs; Do not save when -1')
+    args.add_argument('--plot_every', type=int, default=200, help='Plot every N epochs; Do not plot when -1')
+    args.add_argument('--ckpt_every', type=int, default=1000, help='Save checkpoints every N epochs; Do not save when -1')
     
     # miscellaneous arguments: no need to change!
     args.add_argument('--seed', type=int, default=2025)
