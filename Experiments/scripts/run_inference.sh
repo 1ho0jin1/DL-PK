@@ -1,6 +1,8 @@
 runname=(
-    gru_250125_longrun
-    node_250209
+    gru_250219_aug
+    gru_250219_noaug
+    node_250219_aug
+    node_250219_noaug
 )
 postfix=(
     0000
@@ -19,6 +21,6 @@ do
     do
         echo Processing $name$post
         python inference.py --source_dir dataset$post/test --ckpt_path runs/train/$name/best.pt --run_name $name/$post/test --plot &
-        wait
     done
+    wait
 done
