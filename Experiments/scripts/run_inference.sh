@@ -1,8 +1,8 @@
 runname=(
-    gru_250219_aug
-    gru_250219_noaug
-    node_250219_aug
-    node_250219_noaug
+    gru_250223_aug
+    gru_250223_noaug
+    node_250223_aug
+    node_250223_noaug
 )
 postfix=(
     0000 0101 0202 0303 0404
