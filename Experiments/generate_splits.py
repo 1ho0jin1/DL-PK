@@ -12,7 +12,7 @@ def main(args):
     # set random seed
     set_random_seed()
 
-    base = Path(__file__).parent / f'dataset{args.postfix}'
+    base = Path(__file__).parent / 'dataset' / f'dose_{args.postfix}'
     source = Path(args.source_dir)
 
     id_list = os.listdir(source)
@@ -27,10 +27,11 @@ def main(args):
     # create folders for each split and create symlinks
     for split, lst in zip(['train', 'valid', 'test'], [train_list, valid_list, test_list]):
         dest = base / split
-        os.makedirs(dest, exist_ok=True)
-        for id_ in tqdm(lst):
-            # os.symlink(source / id_, dest / id_)
-            shutil.copytree(source / id_, dest / id_) # if you want to copy instead of symlink
+        if not os.path.exists(dest):
+            os.makedirs(dest)
+            for id_ in tqdm(lst):
+                # os.symlink(source / id_, dest / id_)
+                shutil.copytree(source / id_, dest / id_) # if you want to copy instead of symlink
 
 
 if __name__ == "__main__":
